@@ -11,7 +11,7 @@ import { SentimentPanel } from "@/components/analytics/SentimentPanel";
 export default function Analytics() {
   const { data: leads = [], isLoading: leadsLoading } = useLeads();
   const { data: interactions = [], isLoading: intLoading } = useInteractions();
-  const { allLeads, filteredInteractions } = useTimeFilteredData(leads, interactions);
+  const { allLeads, activeLeads, filteredInteractions } = useTimeFilteredData(leads, interactions);
 
   if (leadsLoading) {
     return (
@@ -50,7 +50,7 @@ export default function Analytics() {
               <span className="ml-2 text-sm text-muted-foreground">Cargando interacciones...</span>
             </div>
           ) : (
-            <DiagnosticTab leads={allLeads} interactions={filteredInteractions} />
+            <DiagnosticTab leads={activeLeads} interactions={filteredInteractions} />
           )}
         </TabsContent>
 

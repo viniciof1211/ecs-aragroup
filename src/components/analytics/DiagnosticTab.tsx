@@ -100,78 +100,110 @@ export function DiagnosticTab({ leads, interactions }: DiagnosticTabProps) {
           </CardHeader>
           <CardContent>
             {(() => {
-              const stageH = 44;
-              const gap = 2;
-              const totalH = funnel.length * stageH + (funnel.length - 1) * gap;
+              const n = funnel.length;
               const svgW = 400;
               const cx = svgW / 2;
-              const maxHalf = svgW * 0.48;
-              const minHalf = svgW * 0.08;
-              const maxCount = funnel[0]?.count || 1;
+              const bodyH = 52;
+              const ellipseRy = 18;
+              const maxRx = svgW * 0.46;
+              const minRx = svgW * 0.09;
 
-              const halfWidths = funnel.map((s) => {
-                const ratio = Math.max(0.15, s.count / maxCount);
-                return minHalf + (maxHalf - minHalf) * ratio;
+              // Force linear taper: stage 0 = widest, last = narrowest
+              const rxList = funnel.map((_, idx) => {
+                const t = idx / Math.max(n - 1, 1);
+                return maxRx - t * (maxRx - minRx);
               });
 
+              // Y positions: each stage starts after the previous body + overlap for ellipse
+              const yPositions: number[] = [];
+              for (let i = 0; i < n; i++) {
+                yPositions.push(i === 0 ? ellipseRy + 2 : yPositions[i - 1] + bodyH);
+              }
+              const totalH = yPositions[n - 1] + bodyH + ellipseRy + 4;
+
               return (
-                <div className="relative mx-auto" style={{ width: "100%", maxWidth: svgW, height: totalH }}>
+                <div className="relative mx-auto" style={{ width: "100%", maxWidth: svgW }}>
                   <svg
                     viewBox={`0 0 ${svgW} ${totalH}`}
                     preserveAspectRatio="xMidYMid meet"
-                    className="h-full w-full"
+                    className="w-full"
                   >
                     <defs>
                       {funnel.map((_, idx) => {
                         const color = FUNNEL_COLORS[idx] ?? FUNNEL_COLORS[FUNNEL_COLORS.length - 1];
                         return (
-                          <linearGradient key={idx} id={`fg-${idx}`} x1="0" y1="0" x2="1" y2="0">
-                            <stop offset="0%" stopColor={color} stopOpacity={0.85} />
+                          <linearGradient key={`body-${idx}`} id={`fb-${idx}`} x1="0" y1="0" x2="1" y2="0">
+                            <stop offset="0%" stopColor={color} stopOpacity={0.55} />
+                            <stop offset="30%" stopColor={color} stopOpacity={0.95} />
                             <stop offset="50%" stopColor={color} stopOpacity={1} />
-                            <stop offset="100%" stopColor={color} stopOpacity={0.85} />
+                            <stop offset="70%" stopColor={color} stopOpacity={0.95} />
+                            <stop offset="100%" stopColor={color} stopOpacity={0.55} />
                           </linearGradient>
                         );
                       })}
                     </defs>
-                    {funnel.map((stage, idx) => {
-                      const y = idx * (stageH + gap);
-                      const topHalf = halfWidths[idx];
-                      const botHalf = idx < funnel.length - 1 ? halfWidths[idx + 1] : topHalf * 0.6;
-                      const points = [
-                        `${cx - topHalf},${y}`,
-                        `${cx + topHalf},${y}`,
-                        `${cx + botHalf},${y + stageH}`,
-                        `${cx - botHalf},${y + stageH}`,
+
+                    {/* Draw stages bottom-to-top so upper stages overlap lower ones */}
+                    {[...funnel].map((_, i) => n - 1 - i).map((idx) => {
+                      const stage = funnel[idx];
+                      const topY = yPositions[idx];
+                      const botY = topY + bodyH;
+                      const topRx = rxList[idx];
+                      const botRx = idx < n - 1 ? rxList[idx + 1] : topRx * 0.5;
+                      const topRy = ellipseRy * (topRx / maxRx);
+                      const botRy = ellipseRy * (botRx / maxRx);
+                      const color = FUNNEL_COLORS[idx] ?? FUNNEL_COLORS[FUNNEL_COLORS.length - 1];
+
+                      // 3D body: front-face arc at top → lines down → back-face arc at bottom
+                      const bodyPath = [
+                        `M ${cx - topRx} ${topY}`,
+                        `A ${topRx} ${topRy} 0 0 1 ${cx + topRx} ${topY}`,
+                        `L ${cx + botRx} ${botY}`,
+                        `A ${botRx} ${botRy} 0 0 1 ${cx - botRx} ${botY}`,
+                        `Z`,
                       ].join(" ");
+
                       return (
-                        <polygon
-                          key={stage.stage}
-                          points={points}
-                          fill={`url(#fg-${idx})`}
-                          className="transition-all duration-500 hover:brightness-110"
-                          style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.15))" }}
-                        />
+                        <g key={stage.stage}>
+                          {/* Body */}
+                          <path d={bodyPath} fill={`url(#fb-${idx})`} />
+                          {/* Bottom rim ellipse (darker = depth) */}
+                          <ellipse
+                            cx={cx} cy={botY} rx={botRx} ry={botRy}
+                            fill={color} opacity={0.7}
+                          />
+                          {/* Top cap ellipse (lighter = 3D highlight) */}
+                          <ellipse
+                            cx={cx} cy={topY} rx={topRx} ry={topRy}
+                            fill={color} opacity={0.45}
+                          />
+                          {/* Top rim stroke for 3D edge */}
+                          <ellipse
+                            cx={cx} cy={topY} rx={topRx} ry={topRy}
+                            fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth={1}
+                          />
+                        </g>
+                      );
+                    })}
+
+                    {/* Labels on top of everything */}
+                    {funnel.map((stage, idx) => {
+                      const labelY = yPositions[idx] + bodyH / 2 + 5;
+                      return (
+                        <text
+                          key={`lbl-${idx}`}
+                          x={cx}
+                          y={labelY}
+                          textAnchor="middle"
+                          className="fill-white font-semibold"
+                          style={{ fontSize: 11, textShadow: "0 1px 4px rgba(0,0,0,0.7)" }}
+                        >
+                          {stage.stage} — {stage.count.toLocaleString("es-CR")}
+                          {idx > 0 ? ` (${stage.rate}%)` : ""}
+                        </text>
                       );
                     })}
                   </svg>
-                  {funnel.map((stage, idx) => {
-                    const y = idx * (stageH + gap);
-                    return (
-                      <div
-                        key={`label-${stage.stage}`}
-                        className="pointer-events-none absolute left-0 flex w-full items-center justify-center gap-2"
-                        style={{ top: y, height: stageH }}
-                      >
-                        <span className="text-xs font-semibold text-white drop-shadow-sm">
-                          {stage.stage}
-                        </span>
-                        <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-bold text-white backdrop-blur-sm">
-                          {stage.count.toLocaleString("es-CR")}
-                          {idx > 0 && ` · ${stage.rate}%`}
-                        </span>
-                      </div>
-                    );
-                  })}
                 </div>
               );
             })()}
