@@ -387,10 +387,43 @@ export function responseTimeDistribution(
 
   const result = buckets.map((b) => ({ bucket: b.label, count: 0 }));
 
+  // If pre-computed first_response_seconds exists, use it
+  let hasPrecomputed = false;
   for (const i of interactions) {
     if (i.first_response_seconds && i.first_response_seconds > 0) {
+      hasPrecomputed = true;
       const idx = buckets.findIndex((b) => i.first_response_seconds! <= b.max);
       if (idx >= 0) result[idx].count++;
+    }
+  }
+  if (hasPrecomputed) return result;
+
+  // Fallback: derive response times from inbound→outbound pairs per lead
+  const byLead = new Map<string, ECSInteraction[]>();
+  for (const i of interactions) {
+    if (!i.lead_id || !i.timestamp) continue;
+    if (!byLead.has(i.lead_id)) byLead.set(i.lead_id, []);
+    byLead.get(i.lead_id)!.push(i);
+  }
+
+  for (const [, leadInts] of byLead) {
+    leadInts.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+    for (let j = 0; j < leadInts.length; j++) {
+      const curr = leadInts[j];
+      // Look for inbound interactions that got a subsequent outbound reply
+      if (curr.direction !== "entrante") continue;
+      for (let k = j + 1; k < leadInts.length; k++) {
+        const next = leadInts[k];
+        if (next.direction === "saliente") {
+          const diffSec =
+            (new Date(next.timestamp).getTime() - new Date(curr.timestamp).getTime()) / 1000;
+          if (diffSec > 0 && diffSec < 604800) {
+            const idx = buckets.findIndex((b) => diffSec <= b.max);
+            if (idx >= 0) result[idx].count++;
+          }
+          break;
+        }
+      }
     }
   }
 

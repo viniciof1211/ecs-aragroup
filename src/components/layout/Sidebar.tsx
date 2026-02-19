@@ -5,6 +5,7 @@ import {
   BarChart3,
   Zap,
   FlaskConical,
+  MessageCircle,
   Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -16,6 +17,7 @@ const navItems = [
   { to: "/analytics", icon: BarChart3, label: "Analytics" },
   { to: "/automation", icon: Zap, label: "Automatización" },
   { to: "/ab-testing", icon: FlaskConical, label: "Pruebas A/B" },
+  { to: "/whatsapp", icon: MessageCircle, label: "WhatsApp" },
   { to: "/settings", icon: Settings, label: "Configuración" },
 ];
 
