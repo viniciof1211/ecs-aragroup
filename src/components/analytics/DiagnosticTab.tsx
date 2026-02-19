@@ -36,6 +36,7 @@ import {
 } from "@/lib/analytics-engine";
 import { CHANNEL_LABELS } from "@/types/ecs";
 import type { ECSLead, ECSInteraction, EmployeeStats } from "@/types/ecs";
+import { MetaAdsPanel } from "./MetaAdsPanel";
 
 const COLORS = ["#1A4A28", "#2A6A3A", "#3B82F6", "#F59E0B", "#EF4444", "#8B5CF6", "#06B6D4", "#EC4899", "#14B8A6", "#F97316"];
 const FUNNEL_COLORS = ["#1A4A28", "#2A6A3A", "#3B82F6", "#F59E0B", "#8B5CF6", "#EF4444"];
@@ -445,6 +446,14 @@ export function DiagnosticTab({ leads, interactions }: DiagnosticTabProps) {
         open={kpiEditorOpen}
         onOpenChange={setKpiEditorOpen}
       />
+
+      {/* Meta Ads — Diagnostic */}
+      <div className="mt-6 border-t pt-6">
+        <h3 className="mb-4 font-display text-lg font-bold flex items-center gap-2">
+          📣 Marketing & Ads — Diagnóstico
+        </h3>
+        <MetaAdsPanel mode="diagnostic" />
+      </div>
     </div>
   );
 }

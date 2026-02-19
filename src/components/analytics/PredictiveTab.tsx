@@ -38,6 +38,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { scoreForecasts, churnRiskAnalysis, segmentDistribution } from "@/lib/analytics-engine";
 import type { ECSLead, ECSInteraction } from "@/types/ecs";
 import { STATUS_LABELS } from "@/types/ecs";
+import { MetaAdsPanel } from "./MetaAdsPanel";
 
 interface PredictiveTabProps {
   leads: ECSLead[];
@@ -557,6 +558,14 @@ export function PredictiveTab({ leads, activeLeads, interactions }: PredictiveTa
           </ScrollArea>
         </CardContent>
       </Card>
+
+      {/* Meta Ads — Predictive */}
+      <div className="mt-6 border-t pt-6">
+        <h3 className="mb-4 font-display text-lg font-bold flex items-center gap-2">
+          📣 Marketing & Ads — Predicción
+        </h3>
+        <MetaAdsPanel mode="predictive" />
+      </div>
     </div>
   );
 }

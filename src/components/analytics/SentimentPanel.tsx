@@ -40,6 +40,7 @@ import { useSentiment, useSentimentHealth } from "@/hooks/useSentiment";
 import { cn } from "@/lib/utils";
 import { translateFreeText } from "@/lib/translate-es";
 import type { ECSLead, ECSInteraction, SentimentResult } from "@/types/ecs";
+import { MetaAdsPanel } from "./MetaAdsPanel";
 
 const SENTIMENT_LABELS: Record<string, string> = {
   very_positive: "Muy Positivo",
@@ -590,6 +591,14 @@ export function SentimentPanel({ leads, interactions }: SentimentPanelProps) {
           </Card>
         </>
       )}
+
+      {/* Meta Ads — Sentiment */}
+      <div className="mt-6 border-t pt-6">
+        <h3 className="mb-4 font-display text-lg font-bold flex items-center gap-2">
+          📣 Marketing & Ads — Sentimiento
+        </h3>
+        <MetaAdsPanel mode="sentiment" />
+      </div>
     </div>
   );
 }

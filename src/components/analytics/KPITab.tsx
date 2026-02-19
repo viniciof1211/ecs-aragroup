@@ -52,6 +52,7 @@ import {
   type CustomKPIDefinition,
 } from "@/types/employee-kpi";
 import type { ECSLead, ECSInteraction } from "@/types/ecs";
+import { useMetaAdsStore } from "@/stores/useMetaAdsStore";
 
 interface KPITabProps {
   leads: ECSLead[];
@@ -89,9 +90,11 @@ export function KPITab({ leads, interactions }: KPITabProps) {
     loadSnapshots();
   }, [loadKPIs, loadSnapshots]);
 
+  const metaAggregates = useMetaAdsStore((s) => s.aggregates);
+
   const businessVars = useMemo(
-    () => computeBusinessVars(leads, interactions, adSpend),
-    [leads, interactions, adSpend]
+    () => computeBusinessVars(leads, interactions, adSpend, metaAggregates),
+    [leads, interactions, adSpend, metaAggregates]
   );
 
   const kpiDefs = allKPIs();

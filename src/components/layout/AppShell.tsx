@@ -5,12 +5,16 @@ import { Footer } from "./Footer";
 import { cn } from "@/lib/utils";
 import { usePreferencesStore } from "@/stores/usePreferencesStore";
 import { useBitrixPolling } from "@/hooks/useBitrixPolling";
+import { useMetaPolling } from "@/hooks/useMetaPolling";
 
 export function AppShell() {
   const sidebarOpen = usePreferencesStore((s) => s.sidebarOpen);
 
   // Start Bitrix24 webhook polling (every 180s)
   useBitrixPolling();
+
+  // Start Meta Marketing API polling (every 240s)
+  useMetaPolling();
 
   return (
     <div className="min-h-screen bg-background">

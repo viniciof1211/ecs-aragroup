@@ -211,6 +211,62 @@ export const BUILTIN_KPIS: CustomKPIDefinition[] = [
     created_at: "",
     updated_at: "",
   },
+  // Marketing KPIs — Meta Ads
+  {
+    id: "builtin-meta-ctr",
+    name: "CTR Meta Ads",
+    description: "Click-through rate promedio de campañas Meta",
+    formula: "metaImpressions > 0 ? metaClicks / metaImpressions * 100 : 0",
+    unit: "%",
+    higher_is_better: true,
+    category: "marketing",
+    created_at: "",
+    updated_at: "",
+  },
+  {
+    id: "builtin-meta-cpl",
+    name: "CPL Meta Ads",
+    description: "Costo por lead desde Meta Ads Manager",
+    formula: "metaLeads > 0 ? metaSpend / metaLeads : 0",
+    unit: "$",
+    higher_is_better: false,
+    category: "marketing",
+    created_at: "",
+    updated_at: "",
+  },
+  {
+    id: "builtin-meta-engagement",
+    name: "Engagement Rate Posts",
+    description: "Tasa de engagement promedio de publicaciones de página",
+    formula: "metaAvgPostEngagement",
+    unit: "%",
+    higher_is_better: true,
+    category: "marketing",
+    created_at: "",
+    updated_at: "",
+  },
+  {
+    id: "builtin-meta-roas",
+    name: "ROAS Meta",
+    description: "Return on Ad Spend calculado desde Meta conversiones",
+    formula: "metaSpend > 0 ? metaConversions * 2500000 / metaSpend : 0",
+    unit: "x",
+    higher_is_better: true,
+    category: "marketing",
+    created_at: "",
+    updated_at: "",
+  },
+  {
+    id: "builtin-meta-cpc",
+    name: "CPC Meta Ads",
+    description: "Costo por clic promedio en campañas Meta",
+    formula: "metaClicks > 0 ? metaSpend / metaClicks : 0",
+    unit: "$",
+    higher_is_better: false,
+    category: "marketing",
+    created_at: "",
+    updated_at: "",
+  },
   // Operations KPIs
   {
     id: "builtin-response-sla",
@@ -424,7 +480,14 @@ import type { ECSLead, ECSInteraction } from "@/types/ecs";
 export function computeBusinessVars(
   leads: ECSLead[],
   interactions: ECSInteraction[],
-  adSpend = 0
+  adSpend = 0,
+  metaAggregates?: {
+    total_spend: number; total_impressions: number; total_reach: number;
+    total_clicks: number; total_leads: number; total_conversions: number;
+    avg_cpl: number; avg_cpc: number; avg_ctr: number; avg_cpm: number;
+    avg_frequency: number; roas: number; total_engagement: number;
+    avg_post_engagement_rate: number; active_campaigns: number; active_ads: number;
+  } | null,
 ): Record<string, number> {
   const totalLeads = leads.length;
   const newLeads = leads.filter((l) => l.status === "new").length;
@@ -536,5 +599,22 @@ export function computeBusinessVars(
     conversionRate: winRate,
     activeLeads: totalLeads - wonLeads - lostLeads,
     totalInteractions: interactions.length,
+    // Meta Marketing variables
+    metaSpend: metaAggregates?.total_spend ?? 0,
+    metaImpressions: metaAggregates?.total_impressions ?? 0,
+    metaReach: metaAggregates?.total_reach ?? 0,
+    metaClicks: metaAggregates?.total_clicks ?? 0,
+    metaLeads: metaAggregates?.total_leads ?? 0,
+    metaConversions: metaAggregates?.total_conversions ?? 0,
+    metaCPL: metaAggregates?.avg_cpl ?? 0,
+    metaCPC: metaAggregates?.avg_cpc ?? 0,
+    metaCTR: metaAggregates?.avg_ctr ?? 0,
+    metaCPM: metaAggregates?.avg_cpm ?? 0,
+    metaFrequency: metaAggregates?.avg_frequency ?? 0,
+    metaROAS: metaAggregates?.roas ?? 0,
+    metaEngagement: metaAggregates?.total_engagement ?? 0,
+    metaAvgPostEngagement: metaAggregates?.avg_post_engagement_rate ?? 0,
+    metaActiveCampaigns: metaAggregates?.active_campaigns ?? 0,
+    metaActiveAds: metaAggregates?.active_ads ?? 0,
   };
 }

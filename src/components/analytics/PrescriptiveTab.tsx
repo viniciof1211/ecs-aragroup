@@ -24,6 +24,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { priorityActionQueue } from "@/lib/analytics-engine";
 import { getSegmentConfig } from "@/types/ecs";
 import type { ECSLead, ECSInteraction } from "@/types/ecs";
+import { MetaAdsPanel } from "./MetaAdsPanel";
 
 const channelIcons: Record<string, React.ElementType> = {
   phone: Phone,
@@ -342,6 +343,14 @@ export function PrescriptiveTab({ leads, interactions }: PrescriptiveTabProps) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Meta Ads — Prescriptive */}
+      <div className="mt-6 border-t pt-6">
+        <h3 className="mb-4 font-display text-lg font-bold flex items-center gap-2">
+          📣 Marketing & Ads — Prescripción
+        </h3>
+        <MetaAdsPanel mode="prescriptive" />
+      </div>
     </div>
   );
 }
