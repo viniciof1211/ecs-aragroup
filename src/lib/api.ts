@@ -1,0 +1,81 @@
+import type { InteractionSummary, SentimentResult, BatchSentimentResponse } from "@/types/ecs";
+
+const BITRIX_MCP_URL =
+  import.meta.env.VITE_BITRIX_MCP_URL ??
+  "https://levinnovation--bitrix24-mcp-bitrix24-server.modal.run";
+
+const SENTIMENT_URL =
+  import.meta.env.VITE_SENTIMENT_AGENT_URL ??
+  "https://levinnovation--ecs-sentiment-agent-ecs-sentiment-server.modal.run";
+
+// ─── Bitrix MCP ───
+
+export async function bitrixHealth() {
+  const res = await fetch(`${BITRIX_MCP_URL}/health`);
+  return res.json();
+}
+
+export async function bitrixStats() {
+  const res = await fetch(`${BITRIX_MCP_URL}/stats`);
+  return res.json();
+}
+
+export async function bitrixPollState() {
+  const res = await fetch(`${BITRIX_MCP_URL}/poll-state`);
+  return res.json();
+}
+
+export async function bitrixTriggerPoll() {
+  const res = await fetch(`${BITRIX_MCP_URL}/poll`, { method: "POST" });
+  return res.json();
+}
+
+export async function bitrixCallTool(tool: string, args: Record<string, unknown> = {}) {
+  const res = await fetch(`${BITRIX_MCP_URL}/mcp/tools/call`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tool, args }),
+  });
+  return res.json();
+}
+
+export async function fetchECSLive(limit = 500) {
+  const res = await fetch(`${BITRIX_MCP_URL}/ecs/live?limit=${limit}`);
+  return res.json();
+}
+
+// ─── Sentiment Agent ───
+
+export async function sentimentHealth() {
+  const res = await fetch(`${SENTIMENT_URL}/ecs/health`);
+  return res.json();
+}
+
+export async function analyzeSentimentBatch(
+  leads: InteractionSummary[],
+  signal?: AbortSignal
+): Promise<BatchSentimentResponse> {
+  const res = await fetch(`${SENTIMENT_URL}/ecs/sentiment`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ leads }),
+    signal,
+  });
+  if (!res.ok) throw new Error(`Sentiment API returned ${res.status}`);
+  return res.json();
+}
+
+export async function analyzeSentimentSingle(
+  data: InteractionSummary,
+  signal?: AbortSignal
+): Promise<SentimentResult> {
+  const res = await fetch(`${SENTIMENT_URL}/ecs/sentiment`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ leads: [data] }),
+    signal,
+  });
+  if (!res.ok) throw new Error(`Sentiment API returned ${res.status}`);
+  const batch: BatchSentimentResponse = await res.json();
+  return batch.results[0];
+}
