@@ -1,6 +1,6 @@
 # Tool: aurea_cotizador
 # Connects to AUREA quotes system to generate kitchen/furniture quotes
-# AUREA endpoint: https://levinnovation--aurea-cotizador-fa8549b3.modal.run
+# AUREA endpoint: https://levinnovation--aurea-knowledge-base.modal.run
 
 import logging
 import httpx
@@ -9,7 +9,7 @@ from langchain_core.tools import tool
 
 logger = logging.getLogger(__name__)
 
-AUREA_URL = "https://levinnovation--aurea-cotizador-fa8549b3.modal.run"
+AUREA_URL = "https://levinnovation--aurea-knowledge-base.modal.run"
 
 
 @tool

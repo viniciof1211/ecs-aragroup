@@ -1,5 +1,5 @@
 # Modal deployment for Customer Service — ARA Group Costa Rica
-# Connects to AUREA cotizador for quotes
+# Connects to AUREA knowledge base for quotes
 
 import modal
 import fastapi
@@ -32,7 +32,7 @@ def serve():
             "tools": 2,
             "tools_list": ["aurea_cotizador", "catalog_search"],
             "model": os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
-            "aurea_url": "https://levinnovation--aurea-cotizador-fa8549b3.modal.run",
+            "aurea_url": "https://levinnovation--aurea-knowledge-base.modal.run",
         }
 
     @web_app.post("/invoke")
