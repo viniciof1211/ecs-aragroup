@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   BarChart,
   Bar,
@@ -9,6 +10,10 @@ import {
   Cell,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Settings2 } from "lucide-react";
+import { EmployeeDetailDialog } from "./EmployeeDetailDialog";
+import { KPIEditorDialog } from "./KPIEditorDialog";
 import {
   Table,
   TableBody,
@@ -27,9 +32,10 @@ import {
   responseTimeDistribution,
 } from "@/lib/analytics-engine";
 import { CHANNEL_LABELS } from "@/types/ecs";
-import type { ECSLead, ECSInteraction } from "@/types/ecs";
+import type { ECSLead, ECSInteraction, EmployeeStats } from "@/types/ecs";
 
 const COLORS = ["#1A4A28", "#2A6A3A", "#3B82F6", "#F59E0B", "#EF4444", "#8B5CF6", "#06B6D4", "#EC4899", "#14B8A6", "#F97316"];
+const FUNNEL_COLORS = ["#1A4A28", "#2A6A3A", "#3B82F6", "#F59E0B", "#8B5CF6", "#EF4444"];
 
 interface DiagnosticTabProps {
   leads: ECSLead[];
@@ -37,6 +43,10 @@ interface DiagnosticTabProps {
 }
 
 export function DiagnosticTab({ leads, interactions }: DiagnosticTabProps) {
+  const [selectedEmployee, setSelectedEmployee] = useState<EmployeeStats | null>(null);
+  const [employeeDialogOpen, setEmployeeDialogOpen] = useState(false);
+  const [kpiEditorOpen, setKpiEditorOpen] = useState(false);
+
   const distData = scoreDistribution(leads);
   const chStats = channelStats(leads, interactions);
   const empStats = employeeStats(leads, interactions);
@@ -89,33 +99,41 @@ export function DiagnosticTab({ leads, interactions }: DiagnosticTabProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
+            <div className="flex flex-col items-center gap-0 py-2">
               {funnel.map((stage, idx) => {
-                const widthPct = Math.max(
-                  10,
-                  funnel[0].count > 0
-                    ? (stage.count / funnel[0].count) * 100
-                    : 10
-                );
+                const maxCount = funnel[0].count || 1;
+                const widthPct = Math.max(20, (stage.count / maxCount) * 100);
+                const nextWidthPct = idx < funnel.length - 1
+                  ? Math.max(20, ((funnel[idx + 1]?.count ?? 0) / maxCount) * 100)
+                  : widthPct * 0.7;
+                const color = FUNNEL_COLORS[idx] ?? FUNNEL_COLORS[FUNNEL_COLORS.length - 1];
                 return (
-                  <div key={stage.stage} className="space-y-1">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="font-medium">{stage.stage}</span>
-                      <span className="text-muted-foreground">
-                        {stage.count.toLocaleString("es-CR")}
-                        {idx > 0 && ` (${stage.rate}%)`}
+                  <div key={stage.stage} className="group relative w-full" style={{ height: 44 }}>
+                    <svg
+                      viewBox="0 0 200 40"
+                      preserveAspectRatio="none"
+                      className="absolute inset-0 h-full w-full"
+                    >
+                      <defs>
+                        <linearGradient id={`funnel-grad-${idx}`} x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={color} stopOpacity={0.95} />
+                          <stop offset="100%" stopColor={color} stopOpacity={0.75} />
+                        </linearGradient>
+                      </defs>
+                      <polygon
+                        points={`${100 - widthPct},0 ${100 + widthPct},0 ${100 + nextWidthPct},40 ${100 - nextWidthPct},40`}
+                        fill={`url(#funnel-grad-${idx})`}
+                        className="transition-all duration-500 group-hover:opacity-90"
+                      />
+                    </svg>
+                    <div className="relative z-10 flex h-full items-center justify-center gap-2 px-4">
+                      <span className="text-xs font-semibold text-white drop-shadow-sm">
+                        {stage.stage}
                       </span>
-                    </div>
-                    <div className="h-6 w-full overflow-hidden rounded bg-muted">
-                      <div
-                        className="flex h-full items-center justify-center rounded text-xs font-medium text-white transition-all"
-                        style={{
-                          width: `${widthPct}%`,
-                          backgroundColor: COLORS[idx % COLORS.length],
-                        }}
-                      >
-                        {stage.count > 0 && stage.count}
-                      </div>
+                      <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-bold text-white backdrop-blur-sm">
+                        {stage.count.toLocaleString("es-CR")}
+                        {idx > 0 && ` · ${stage.rate}%`}
+                      </span>
                     </div>
                   </div>
                 );
@@ -194,10 +212,19 @@ export function DiagnosticTab({ leads, interactions }: DiagnosticTabProps) {
 
       {/* Row 3: Employee Leaderboard */}
       <Card className="shadow-card">
-        <CardHeader className="pb-2">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="font-display text-lg">
             Rendimiento por Empleado
           </CardTitle>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5 text-xs"
+            onClick={() => setKpiEditorOpen(true)}
+          >
+            <Settings2 className="h-3.5 w-3.5" />
+            Gestionar KPIs
+          </Button>
         </CardHeader>
         <CardContent>
           <Table>
@@ -214,9 +241,17 @@ export function DiagnosticTab({ leads, interactions }: DiagnosticTabProps) {
             </TableHeader>
             <TableBody>
               {empStats.map((emp, idx) => (
-                <TableRow key={emp.employee}>
+                <TableRow
+                  key={emp.employee}
+                  className="cursor-pointer transition-colors hover:bg-muted/50"
+                  onDoubleClick={() => {
+                    setSelectedEmployee(emp);
+                    setEmployeeDialogOpen(true);
+                  }}
+                  title="Doble click para ver detalle"
+                >
                   <TableCell className="font-display font-bold">{idx + 1}</TableCell>
-                  <TableCell className="font-medium">{emp.employee}</TableCell>
+                  <TableCell className="font-medium text-primary hover:underline">{emp.employee}</TableCell>
                   <TableCell className="text-right">{emp.avgScore}</TableCell>
                   <TableCell className="text-right">
                     {emp.responseTime > 0 ? `${Math.round(emp.responseTime / 60)} min` : "—"}
@@ -305,6 +340,17 @@ export function DiagnosticTab({ leads, interactions }: DiagnosticTabProps) {
           </CardContent>
         </Card>
       </div>
+      <EmployeeDetailDialog
+        open={employeeDialogOpen}
+        onOpenChange={setEmployeeDialogOpen}
+        employee={selectedEmployee}
+        leads={leads}
+        interactions={interactions}
+      />
+      <KPIEditorDialog
+        open={kpiEditorOpen}
+        onOpenChange={setKpiEditorOpen}
+      />
     </div>
   );
 }
