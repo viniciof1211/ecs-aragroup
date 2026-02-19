@@ -99,46 +99,82 @@ export function DiagnosticTab({ leads, interactions }: DiagnosticTabProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-col items-center gap-0 py-2">
-              {funnel.map((stage, idx) => {
-                const maxCount = funnel[0].count || 1;
-                const widthPct = Math.max(20, (stage.count / maxCount) * 100);
-                const nextWidthPct = idx < funnel.length - 1
-                  ? Math.max(20, ((funnel[idx + 1]?.count ?? 0) / maxCount) * 100)
-                  : widthPct * 0.7;
-                const color = FUNNEL_COLORS[idx] ?? FUNNEL_COLORS[FUNNEL_COLORS.length - 1];
-                return (
-                  <div key={stage.stage} className="group relative w-full" style={{ height: 44 }}>
-                    <svg
-                      viewBox="0 0 200 40"
-                      preserveAspectRatio="none"
-                      className="absolute inset-0 h-full w-full"
-                    >
-                      <defs>
-                        <linearGradient id={`funnel-grad-${idx}`} x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor={color} stopOpacity={0.95} />
-                          <stop offset="100%" stopColor={color} stopOpacity={0.75} />
-                        </linearGradient>
-                      </defs>
-                      <polygon
-                        points={`${100 - widthPct},0 ${100 + widthPct},0 ${100 + nextWidthPct},40 ${100 - nextWidthPct},40`}
-                        fill={`url(#funnel-grad-${idx})`}
-                        className="transition-all duration-500 group-hover:opacity-90"
-                      />
-                    </svg>
-                    <div className="relative z-10 flex h-full items-center justify-center gap-2 px-4">
-                      <span className="text-xs font-semibold text-white drop-shadow-sm">
-                        {stage.stage}
-                      </span>
-                      <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-bold text-white backdrop-blur-sm">
-                        {stage.count.toLocaleString("es-CR")}
-                        {idx > 0 && ` · ${stage.rate}%`}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            {(() => {
+              const stageH = 44;
+              const gap = 2;
+              const totalH = funnel.length * stageH + (funnel.length - 1) * gap;
+              const svgW = 400;
+              const cx = svgW / 2;
+              const maxHalf = svgW * 0.48;
+              const minHalf = svgW * 0.08;
+              const maxCount = funnel[0]?.count || 1;
+
+              const halfWidths = funnel.map((s) => {
+                const ratio = Math.max(0.15, s.count / maxCount);
+                return minHalf + (maxHalf - minHalf) * ratio;
+              });
+
+              return (
+                <div className="relative mx-auto" style={{ width: "100%", maxWidth: svgW, height: totalH }}>
+                  <svg
+                    viewBox={`0 0 ${svgW} ${totalH}`}
+                    preserveAspectRatio="xMidYMid meet"
+                    className="h-full w-full"
+                  >
+                    <defs>
+                      {funnel.map((_, idx) => {
+                        const color = FUNNEL_COLORS[idx] ?? FUNNEL_COLORS[FUNNEL_COLORS.length - 1];
+                        return (
+                          <linearGradient key={idx} id={`fg-${idx}`} x1="0" y1="0" x2="1" y2="0">
+                            <stop offset="0%" stopColor={color} stopOpacity={0.85} />
+                            <stop offset="50%" stopColor={color} stopOpacity={1} />
+                            <stop offset="100%" stopColor={color} stopOpacity={0.85} />
+                          </linearGradient>
+                        );
+                      })}
+                    </defs>
+                    {funnel.map((stage, idx) => {
+                      const y = idx * (stageH + gap);
+                      const topHalf = halfWidths[idx];
+                      const botHalf = idx < funnel.length - 1 ? halfWidths[idx + 1] : topHalf * 0.6;
+                      const points = [
+                        `${cx - topHalf},${y}`,
+                        `${cx + topHalf},${y}`,
+                        `${cx + botHalf},${y + stageH}`,
+                        `${cx - botHalf},${y + stageH}`,
+                      ].join(" ");
+                      return (
+                        <polygon
+                          key={stage.stage}
+                          points={points}
+                          fill={`url(#fg-${idx})`}
+                          className="transition-all duration-500 hover:brightness-110"
+                          style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.15))" }}
+                        />
+                      );
+                    })}
+                  </svg>
+                  {funnel.map((stage, idx) => {
+                    const y = idx * (stageH + gap);
+                    return (
+                      <div
+                        key={`label-${stage.stage}`}
+                        className="pointer-events-none absolute left-0 flex w-full items-center justify-center gap-2"
+                        style={{ top: y, height: stageH }}
+                      >
+                        <span className="text-xs font-semibold text-white drop-shadow-sm">
+                          {stage.stage}
+                        </span>
+                        <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-bold text-white backdrop-blur-sm">
+                          {stage.count.toLocaleString("es-CR")}
+                          {idx > 0 && ` · ${stage.rate}%`}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </CardContent>
         </Card>
       </div>

@@ -51,6 +51,8 @@ export async function sentimentHealth() {
   return res.json();
 }
 
+const SPANISH_INSTRUCTIONS = "IMPORTANTE: Responde SIEMPRE completamente en ESPAÑOL. Todos los campos — recommended_action, reasoning, intent_signals, risk_flags — deben estar escritos 100% en español. No mezcles inglés y español. Usa terminología comercial en español de Latinoamérica.";
+
 export async function analyzeSentimentBatch(
   leads: InteractionSummary[],
   signal?: AbortSignal
@@ -58,7 +60,11 @@ export async function analyzeSentimentBatch(
   const res = await fetch(`${SENTIMENT_URL}/ecs/sentiment`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ leads }),
+    body: JSON.stringify({
+      leads,
+      language: "es",
+      system_instructions: SPANISH_INSTRUCTIONS,
+    }),
     signal,
   });
   if (!res.ok) throw new Error(`Sentiment API returned ${res.status}`);
@@ -72,7 +78,11 @@ export async function analyzeSentimentSingle(
   const res = await fetch(`${SENTIMENT_URL}/ecs/sentiment`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ leads: [data] }),
+    body: JSON.stringify({
+      leads: [data],
+      language: "es",
+      system_instructions: SPANISH_INSTRUCTIONS,
+    }),
     signal,
   });
   if (!res.ok) throw new Error(`Sentiment API returned ${res.status}`);
