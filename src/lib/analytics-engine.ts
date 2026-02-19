@@ -430,6 +430,66 @@ export function responseTimeDistribution(
   return result;
 }
 
+// Avg response time trend over time (weekly buckets)
+export function responseTimeTrend(
+  interactions: ECSInteraction[]
+): { week: string; avgMinutes: number; count: number }[] {
+  // Build inbound→outbound response time pairs
+  const byLead = new Map<string, ECSInteraction[]>();
+  for (const i of interactions) {
+    if (!i.lead_id || !i.timestamp) continue;
+    if (!byLead.has(i.lead_id)) byLead.set(i.lead_id, []);
+    byLead.get(i.lead_id)!.push(i);
+  }
+
+  const pairs: { ts: number; diffSec: number }[] = [];
+  for (const [, ints] of byLead) {
+    ints.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+    for (let j = 0; j < ints.length; j++) {
+      if (ints[j].direction !== "entrante") continue;
+      for (let k = j + 1; k < ints.length; k++) {
+        if (ints[k].direction === "saliente") {
+          const diff = (new Date(ints[k].timestamp).getTime() - new Date(ints[j].timestamp).getTime()) / 1000;
+          if (diff > 0 && diff < 604800) {
+            pairs.push({ ts: new Date(ints[j].timestamp).getTime(), diffSec: diff });
+          }
+          break;
+        }
+      }
+    }
+  }
+
+  if (pairs.length === 0) return [];
+
+  pairs.sort((a, b) => a.ts - b.ts);
+
+  // Group into weekly buckets
+  const weekMs = 7 * 24 * 60 * 60 * 1000;
+  const minTs = pairs[0].ts;
+  const maxTs = pairs[pairs.length - 1].ts;
+  const buckets: { start: number; total: number; count: number }[] = [];
+
+  for (let t = minTs; t <= maxTs; t += weekMs) {
+    buckets.push({ start: t, total: 0, count: 0 });
+  }
+
+  for (const p of pairs) {
+    const idx = Math.min(Math.floor((p.ts - minTs) / weekMs), buckets.length - 1);
+    if (idx >= 0 && idx < buckets.length) {
+      buckets[idx].total += p.diffSec;
+      buckets[idx].count++;
+    }
+  }
+
+  return buckets
+    .filter((b) => b.count > 0)
+    .map((b) => ({
+      week: new Date(b.start).toLocaleDateString("es-CR", { day: "2-digit", month: "short" }),
+      avgMinutes: Math.round(b.total / b.count / 60),
+      count: b.count,
+    }));
+}
+
 export function brandComparison(leads: ECSLead[]): { brand: string; avgScore: number; count: number; conversionRate: number }[] {
   const brandMap = new Map<string, { scores: number[]; wonCount: number }>();
 

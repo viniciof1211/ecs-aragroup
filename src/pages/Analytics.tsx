@@ -48,7 +48,7 @@ export default function Analytics() {
               <span className="ml-2 text-sm text-muted-foreground">Cargando datos...</span>
             </div>
           ) : (
-            <KPITab leads={activeLeads} interactions={filteredInteractions} />
+            <KPITab leads={allLeads} interactions={filteredInteractions} />
           )}
         </TabsContent>
 
@@ -74,7 +74,7 @@ export default function Analytics() {
               <span className="ml-2 text-sm text-muted-foreground">Cargando interacciones...</span>
             </div>
           ) : (
-            <PredictiveTab leads={allLeads} interactions={filteredInteractions} />
+            <PredictiveTab leads={allLeads} activeLeads={activeLeads} interactions={filteredInteractions} />
           )}
         </TabsContent>
 

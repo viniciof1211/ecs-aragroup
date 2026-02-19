@@ -8,6 +8,8 @@ import {
   Tooltip,
   ResponsiveContainer,
   Cell,
+  LineChart,
+  Line,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,6 +32,7 @@ import {
   funnelAnalysis,
   brandComparison,
   responseTimeDistribution,
+  responseTimeTrend,
 } from "@/lib/analytics-engine";
 import { CHANNEL_LABELS } from "@/types/ecs";
 import type { ECSLead, ECSInteraction, EmployeeStats } from "@/types/ecs";
@@ -54,6 +57,7 @@ export function DiagnosticTab({ leads, interactions }: DiagnosticTabProps) {
   const funnel = funnelAnalysis(leads);
   const brands = brandComparison(leads);
   const respDist = responseTimeDistribution(interactions);
+  const respTrend = responseTimeTrend(interactions);
 
   // Heatmap: find max for color scaling
   const heatMax = Math.max(...heatmapData.map((h) => h.count), 1);
@@ -258,7 +262,7 @@ export function DiagnosticTab({ leads, interactions }: DiagnosticTabProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={260}>
+            <ResponsiveContainer width="100%" height={180}>
               <BarChart data={respDist}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis dataKey="bucket" tick={{ fontSize: 9 }} className="fill-muted-foreground" />
@@ -274,6 +278,28 @@ export function DiagnosticTab({ leads, interactions }: DiagnosticTabProps) {
                 <Bar dataKey="count" name="Interacciones" fill="#1A4A28" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
+            {respTrend.length > 1 && (
+              <div className="mt-3 border-t pt-3">
+                <p className="mb-1 text-[10px] font-medium text-muted-foreground">Tendencia — Tiempo Promedio de Respuesta (min)</p>
+                <ResponsiveContainer width="100%" height={120}>
+                  <LineChart data={respTrend}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis dataKey="week" tick={{ fontSize: 8 }} className="fill-muted-foreground" />
+                    <YAxis tick={{ fontSize: 8 }} className="fill-muted-foreground" />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "hsl(var(--card))",
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: "0.5rem",
+                        fontSize: "0.75rem",
+                      }}
+                      formatter={(v) => [`${v ?? 0} min`, "Promedio"]}
+                    />
+                    <Line type="monotone" dataKey="avgMinutes" stroke="#F59E0B" strokeWidth={2} dot={{ r: 2 }} name="Promedio (min)" />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

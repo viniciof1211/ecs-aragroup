@@ -231,7 +231,7 @@ export default function LeadProfile() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <InteractionTimeline interactions={interactions} />
+              <InteractionTimeline interactions={interactions} leadName={lead.name} />
             </CardContent>
           </Card>
         </div>
