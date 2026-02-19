@@ -9,6 +9,7 @@ import {
   Minus,
   FlaskConical,
   Clock,
+  BookOpen,
 } from "lucide-react";
 import {
   BarChart,
@@ -31,6 +32,7 @@ import {
 } from "@/stores/useExperimentStore";
 import { STATUS_LABELS } from "@/types/ecs";
 import type { ECSLead } from "@/types/ecs";
+import { CookbookPanel } from "./CookbookPanel";
 
 // ─── Compute live tracking data from current lead state ───
 interface LiveTracking {
@@ -287,6 +289,9 @@ function ExperimentCard({ experiment }: { experiment: Experiment }) {
 
         {/* Lead-level detail (collapsed by default) */}
         <LeadDetailTable tracking={tracking} />
+
+        {/* Cookbook Execution */}
+        <CookbookSection experiment={experiment} />
       </CardContent>
     </Card>
   );
@@ -398,6 +403,30 @@ function LeadDetailTable({ tracking }: { tracking: LiveTracking }) {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Cookbook Section (collapsible) ───
+function CookbookSection({ experiment }: { experiment: Experiment }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="border-t pt-3">
+      <Button
+        variant={open ? "default" : "outline"}
+        size="sm"
+        className={cn("w-full gap-2 text-xs", open && "bg-[#1A4A28] hover:bg-[#2A6A3A]")}
+        onClick={() => setOpen(!open)}
+      >
+        <BookOpen className="h-3.5 w-3.5" />
+        {open ? "Ocultar Cookbook de Ejecución" : "📖 Abrir Cookbook de Ejecución"}
+      </Button>
+      {open && (
+        <div className="mt-4">
+          <CookbookPanel experiment={experiment} />
         </div>
       )}
     </div>
