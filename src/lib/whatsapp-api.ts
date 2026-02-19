@@ -13,7 +13,7 @@ import type {
 
 const WA_AGENT_URL =
   import.meta.env.VITE_WHATSAPP_AGENT_URL ??
-  "https://levinnovation--ecs-whatsapp-agent-whatsapp-server.modal.run";
+  "https://levinnovation--customer-service-06622d63.modal.run";
 
 const BITRIX_MCP_URL =
   import.meta.env.VITE_BITRIX_MCP_URL ??

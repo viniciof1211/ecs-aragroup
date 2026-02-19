@@ -324,6 +324,10 @@ export default function WhatsAppManager() {
   const [search, setSearch] = useState("");
   const [messageInput, setMessageInput] = useState("");
   const [agentOnline, setAgentOnline] = useState(false);
+  const [showLineManager, setShowLineManager] = useState(false);
+  const [newLinePhone, setNewLinePhone] = useState("");
+  const [newLineLabel, setNewLineLabel] = useState("");
+  const [newLineType, setNewLineType] = useState<"personal" | "business">("business");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Load demo data on mount
@@ -380,7 +384,26 @@ export default function WhatsAppManager() {
     }
   }, [messageInput, activeConversationId, activeConv, addMessage]);
 
-  const activeAccount = accounts[0];
+  function handleAddLine() {
+    if (!newLinePhone.trim() || !newLineLabel.trim()) return;
+    const newAcc: WhatsAppAccount = {
+      id: `acc-${Date.now()}`,
+      label: newLineLabel.trim(),
+      phone: newLinePhone.trim(),
+      type: newLineType,
+      webhook_url: "",
+      ai_enabled: true,
+      status: "pending",
+      created_at: new Date().toISOString(),
+    };
+    setAccounts([...accounts, newAcc]);
+    setNewLinePhone("");
+    setNewLineLabel("");
+  }
+
+  function handleRemoveLine(id: string) {
+    setAccounts(accounts.filter((a) => a.id !== id));
+  }
 
   return (
     <div className="space-y-4">
@@ -396,18 +419,15 @@ export default function WhatsAppManager() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {activeAccount && (
-            <div className="flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm">
-              <Phone className="h-3.5 w-3.5 text-green-600" />
-              <span className="font-medium">{activeAccount.label}</span>
-              <span className="text-muted-foreground">{activeAccount.phone}</span>
-              {activeAccount.status === "connected" ? (
-                <Wifi className="h-3.5 w-3.5 text-green-500" />
-              ) : (
-                <WifiOff className="h-3.5 w-3.5 text-destructive" />
-              )}
-            </div>
-          )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5 text-xs"
+            onClick={() => setShowLineManager(!showLineManager)}
+          >
+            <Phone className="h-3.5 w-3.5" />
+            Líneas ({accounts.length})
+          </Button>
           <Badge
             variant="outline"
             className={cn(
@@ -422,6 +442,82 @@ export default function WhatsAppManager() {
           </Badge>
         </div>
       </div>
+
+      {/* Phone Line Manager */}
+      {showLineManager && (
+        <Card className="shadow-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Phone className="h-4 w-4 text-green-600" />
+              Gestión de Líneas Telefónicas Enterprise
+            </CardTitle>
+          </CardHeader>
+          <div className="px-4 pb-4 space-y-3">
+            {/* Existing lines */}
+            <div className="space-y-1.5">
+              {accounts.map((acc) => (
+                <div key={acc.id} className="flex items-center justify-between rounded-lg border px-3 py-2">
+                  <div className="flex items-center gap-3">
+                    <div className={cn(
+                      "flex h-8 w-8 items-center justify-center rounded-full text-white text-xs font-bold",
+                      acc.status === "connected" ? "bg-green-600" : acc.status === "pending" ? "bg-yellow-500" : "bg-gray-400"
+                    )}>
+                      {acc.type === "business" ? "B" : "P"}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium">{acc.label}</span>
+                        <Badge variant="outline" className="text-[8px]">
+                          {acc.type === "business" ? "Business" : "Personal"}
+                        </Badge>
+                      </div>
+                      <span className="text-xs text-muted-foreground">{acc.phone}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {acc.status === "connected" ? (
+                      <Wifi className="h-3.5 w-3.5 text-green-500" />
+                    ) : acc.status === "pending" ? (
+                      <Clock className="h-3.5 w-3.5 text-yellow-500" />
+                    ) : (
+                      <WifiOff className="h-3.5 w-3.5 text-destructive" />
+                    )}
+                    <span className="text-[10px] text-muted-foreground capitalize">{acc.status === "connected" ? "Conectada" : acc.status === "pending" ? "Pendiente" : "Desconectada"}</span>
+                    <Button variant="ghost" size="sm" className="h-6 text-[10px] text-destructive" onClick={() => handleRemoveLine(acc.id)}>
+                      Eliminar
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {/* Add new line */}
+            <div className="flex items-end gap-2 rounded-lg border border-dashed p-3">
+              <div className="space-y-1 flex-1">
+                <label className="text-[10px] font-medium text-muted-foreground">Nombre</label>
+                <Input value={newLineLabel} onChange={(e) => setNewLineLabel(e.target.value)} placeholder="Ej: Ventas Escazú" className="h-7 text-xs" />
+              </div>
+              <div className="space-y-1 flex-1">
+                <label className="text-[10px] font-medium text-muted-foreground">Teléfono</label>
+                <Input value={newLinePhone} onChange={(e) => setNewLinePhone(e.target.value)} placeholder="+506 8888-0002" className="h-7 text-xs" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium text-muted-foreground">Tipo</label>
+                <select
+                  value={newLineType}
+                  onChange={(e) => setNewLineType(e.target.value as "personal" | "business")}
+                  className="h-7 rounded-md border bg-background px-2 text-xs"
+                >
+                  <option value="business">Business</option>
+                  <option value="personal">Personal</option>
+                </select>
+              </div>
+              <Button size="sm" className="h-7 gap-1 text-xs bg-green-600 hover:bg-green-700" onClick={handleAddLine} disabled={!newLinePhone.trim() || !newLineLabel.trim()}>
+                <Phone className="h-3 w-3" /> Agregar
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
 
       {/* Main layout: conversation list + chat */}
       <div className="grid grid-cols-[340px_1fr] gap-4" style={{ height: "calc(100vh - 12rem)" }}>
