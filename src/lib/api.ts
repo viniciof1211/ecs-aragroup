@@ -1,4 +1,11 @@
 import type { InteractionSummary, SentimentResult, BatchSentimentResponse } from "@/types/ecs";
+import {
+  isFallbackActive,
+  activateFallback,
+  deactivateFallback,
+  fallbackAnalyzeSentimentBatch,
+  getFallbackStatus,
+} from "@/lib/openrouter-fallback";
 
 const BITRIX_MCP_URL =
   import.meta.env.VITE_BITRIX_MCP_URL ??
@@ -57,35 +64,65 @@ export async function analyzeSentimentBatch(
   leads: InteractionSummary[],
   signal?: AbortSignal
 ): Promise<BatchSentimentResponse> {
-  const res = await fetch(`${SENTIMENT_URL}/ecs/sentiment`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      leads,
-      language: "es",
-      system_instructions: SPANISH_INSTRUCTIONS,
-    }),
-    signal,
-  });
-  if (!res.ok) throw new Error(`Sentiment API returned ${res.status}`);
-  return res.json();
+  // If fallback is already active, go directly to free models
+  if (isFallbackActive()) {
+    return fallbackAnalyzeSentimentBatch(leads, signal);
+  }
+
+  try {
+    const res = await fetch(`${SENTIMENT_URL}/ecs/sentiment`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        leads,
+        language: "es",
+        system_instructions: SPANISH_INSTRUCTIONS,
+      }),
+      signal,
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text().catch(() => "");
+      const isCreditsError =
+        res.status === 402 ||
+        res.status === 429 ||
+        errorText.includes("credit") ||
+        errorText.includes("quota") ||
+        errorText.includes("rate_limit") ||
+        errorText.includes("insufficient");
+
+      if (isCreditsError || res.status >= 500) {
+        console.warn(
+          `[API] Primary agent failed (${res.status}), activating fallback...`
+        );
+        activateFallback();
+        return fallbackAnalyzeSentimentBatch(leads, signal);
+      }
+      throw new Error(`Sentiment API returned ${res.status}`);
+    }
+
+    // Primary succeeded — deactivate fallback if it was active
+    if (getFallbackStatus().active) {
+      deactivateFallback();
+    }
+    return res.json();
+  } catch (err) {
+    // Network errors or timeouts — try fallback
+    if (signal?.aborted) throw err;
+    console.warn("[API] Primary agent unreachable, activating fallback...", err);
+    activateFallback();
+    return fallbackAnalyzeSentimentBatch(leads, signal);
+  }
 }
 
 export async function analyzeSentimentSingle(
   data: InteractionSummary,
   signal?: AbortSignal
 ): Promise<SentimentResult> {
-  const res = await fetch(`${SENTIMENT_URL}/ecs/sentiment`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      leads: [data],
-      language: "es",
-      system_instructions: SPANISH_INSTRUCTIONS,
-    }),
-    signal,
-  });
-  if (!res.ok) throw new Error(`Sentiment API returned ${res.status}`);
-  const batch: BatchSentimentResponse = await res.json();
+  // Delegate to batch (which handles fallback internally)
+  const batch = await analyzeSentimentBatch([data], signal);
   return batch.results[0];
 }
+
+/** Expose fallback status for UI indicators */
+export { getFallbackStatus } from "@/lib/openrouter-fallback";

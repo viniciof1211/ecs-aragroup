@@ -11,6 +11,11 @@ import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { ECSLead, ECSInteraction, SentimentResult } from "@/types/ecs";
 import { getSegmentConfig, getSegmentFromScore, STATUS_LABELS, CHANNEL_LABELS } from "@/types/ecs";
+import {
+  isFallbackActive,
+  activateFallback,
+  fallbackChatCompletion,
+} from "@/lib/openrouter-fallback";
 
 const SENTIMENT_URL =
   import.meta.env.VITE_SENTIMENT_AGENT_URL ??
@@ -96,27 +101,45 @@ async function callAdvisorAPI(
   messages: { role: string; content: string }[],
   signal?: AbortSignal
 ): Promise<string> {
-  try {
-    const res = await fetch(`${SENTIMENT_URL}/ecs/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        messages,
-        system_prompt: SYSTEM_PROMPT,
-        max_tokens: 500,
-      }),
-      signal,
-    });
+  // If fallback is already active, skip primary agent
+  if (!isFallbackActive()) {
+    try {
+      const res = await fetch(`${SENTIMENT_URL}/ecs/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages,
+          system_prompt: SYSTEM_PROMPT,
+          max_tokens: 500,
+        }),
+        signal,
+      });
 
-    if (res.ok) {
-      const data = await res.json();
-      return data.response || data.content || data.message || "Sin respuesta del agente.";
+      if (res.ok) {
+        const data = await res.json();
+        return data.response || data.content || data.message || "Sin respuesta del agente.";
+      }
+
+      // Primary failed — activate fallback
+      const errorText = await res.text().catch(() => "");
+      const isCreditsError =
+        res.status === 402 || res.status === 429 ||
+        errorText.includes("credit") || errorText.includes("quota");
+      if (isCreditsError || res.status >= 500) {
+        activateFallback();
+      }
+    } catch {
+      activateFallback();
     }
-  } catch {
-    // Fallback to local advice generation
   }
 
-  // Fallback: generate advice locally based on lead context
+  // Try free OpenRouter models
+  try {
+    return await fallbackChatCompletion(messages, SYSTEM_PROMPT, signal);
+  } catch {
+    // All free models failed — fall back to local advice
+  }
+
   return generateLocalAdvice(messages);
 }
 

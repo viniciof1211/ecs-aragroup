@@ -40,6 +40,7 @@ import { useSentiment, useSentimentHealth } from "@/hooks/useSentiment";
 import { cn } from "@/lib/utils";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { translateFreeText } from "@/lib/translate-es";
+import { getFallbackStatus } from "@/lib/openrouter-fallback";
 import type { ECSLead, ECSInteraction, SentimentResult } from "@/types/ecs";
 import { MetaAdsPanel } from "./MetaAdsPanel";
 
@@ -226,8 +227,15 @@ export function SentimentPanel({ leads, interactions }: SentimentPanelProps) {
                 Agente de Análisis de Sentimiento
               </h2>
               <p className="text-xs text-muted-foreground">
-                Modelo: openai/gpt-4o-mini vía OpenRouter
+                {getFallbackStatus().active
+                  ? `⚠️ Modo respaldo: ${getFallbackStatus().currentModel ?? "modelo gratuito"}`
+                  : "Modelo: openai/gpt-4o-mini vía OpenRouter"}
               </p>
+              {getFallbackStatus().active && (
+                <Badge variant="outline" className="mt-1 text-[9px] border-amber-400 text-amber-600">
+                  Créditos agotados — usando modelos gratuitos temporalmente
+                </Badge>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2">
