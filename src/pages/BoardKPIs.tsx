@@ -55,6 +55,7 @@ import {
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import {
   computeBoardKPIs,
   saveBoardKPIResults,
@@ -299,6 +300,7 @@ function UDNSection({
                 <CardTitle className="text-sm font-display flex items-center gap-2">
                   <Users className="h-4 w-4 text-blue-500" />
                   Leads y Citas — Tendencia Mensual
+                  <InfoTooltip text="Muestra la cantidad de leads generados, citas agendadas y contratos con depósito por mes para esta UDN. Los datos provienen de Bitrix24 y se segmentan por marca/división del lead. Permite identificar tendencias de crecimiento o contracción mensual." />
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -332,6 +334,7 @@ function UDNSection({
                 <CardTitle className="text-sm font-display flex items-center gap-2">
                   <Clock className="h-4 w-4 text-purple-500" />
                   Tiempo de Respuesta — Tendencia Mensual
+                  <InfoTooltip text="Tiempo promedio en minutos desde que un lead envía un mensaje entrante hasta la primera respuesta saliente del equipo. Se calcula por pares entrante→saliente en las interacciones de Bitrix24. La línea roja punteada indica la meta establecida por la Gerencia Comercial." />
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -694,6 +697,7 @@ export default function BoardKPIs() {
           <CardTitle className="font-display text-lg flex items-center gap-2">
             <Target className="h-5 w-5 text-red-500" />
             Comparativa Ejecutiva — Euromobilia vs Nouvell
+            <InfoTooltip text="Radar que compara el estado de los 4 KPIs obligatorios entre ambas UDNs. Cada eje representa un KPI y el valor se deriva del color semáforo: Azul=100, Verde=75, Amarillo=50, Rojo=25. Un polígono más amplio indica mejor desempeño general." />
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -721,6 +725,7 @@ export default function BoardKPIs() {
           <CardTitle className="font-display text-lg flex items-center gap-2">
             <Shield className="h-5 w-5 text-red-500" />
             Tabla Detallada — Presentación a Junta Directiva
+            <InfoTooltip text="Tabla consolidada con los 8 KPIs obligatorios (4 por UDN). Valor Actual = dato del mes corriente. Baseline U3M = promedio de los últimos 3 meses. Cambio % = variación porcentual vs U3M. El color semáforo se asigna según umbrales definidos por la Gerencia Comercial en kpis.xlsx." />
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -804,6 +809,7 @@ export default function BoardKPIs() {
             <CardTitle className="font-display text-lg flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-green-500" />
               Evolución Histórica de KPIs
+              <InfoTooltip text="Evolución mes a mes de los KPIs obligatorios a partir de snapshots guardados manualmente. Cada línea representa el cambio porcentual vs U3M de un KPI+UDN específico. Permite visualizar la mejora o deterioro sostenido a lo largo del tiempo." />
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -840,6 +846,7 @@ export default function BoardKPIs() {
           <CardTitle className="font-display text-lg flex items-center gap-2">
             <FlaskConical className="h-5 w-5 text-emerald-500" />
             Pruebas A/B en Ejecución — Impacto en Tiempo Real
+            <InfoTooltip text="Dashboard compuesto que muestra el impacto de las pruebas A/B activas. Incluye: ECS Score actual vs pronóstico por lead, CAC y CPL con tendencias predictivas, distribución de leads por segmento dentro y fuera de las pruebas, y transiciones de segmento como consecuencia directa o indirecta de campañas." />
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
             {activeExperiments.length > 0
@@ -858,6 +865,7 @@ export default function BoardKPIs() {
                     <CardTitle className="text-sm flex items-center gap-2">
                       <Activity className="h-4 w-4 text-emerald-500" />
                       ECS Score — Actual vs Pronóstico
+                      <InfoTooltip text="Línea sólida: promedio del ECS Score actual de los leads inscritos en pruebas A/B. Línea punteada: pronóstico basado en el delta de mejora observado desde la inscripción, proyectado a +7, +14 y +21 días. Las barras muestran la cantidad de leads en test y los que transicionaron de segmento." />
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="px-2 pb-3">
@@ -885,6 +893,7 @@ export default function BoardKPIs() {
                     <CardTitle className="text-sm flex items-center gap-2">
                       <DollarSign className="h-4 w-4 text-amber-500" />
                       CAC y CPL — Actual vs Pronóstico
+                      <InfoTooltip text="CAC (Costo de Adquisición de Cliente) = Inversión publicitaria / Leads ganados. CPL (Costo por Lead) = Inversión publicitaria / Total de leads. La inversión se configura manualmente en el módulo KPI. Las líneas punteadas proyectan la reducción esperada según el lift promedio de las pruebas A/B activas." />
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="px-2 pb-3">
@@ -913,6 +922,7 @@ export default function BoardKPIs() {
                   <CardTitle className="text-sm flex items-center gap-2">
                     <Users className="h-4 w-4 text-purple-500" />
                     Impacto por Segmento — Leads en Test y Transiciones
+                    <InfoTooltip text="Barras apiladas: leads dentro de pruebas A/B vs fuera, por segmento ECS (Caliente a Perdido). Barras separadas: Transición ↑ = leads que subieron de segmento (ej. frío→tibio), Transición ↓ = leads que bajaron. Los segmentos se determinan por el ECS Score: Hot ≥80, Warm ≥60, Cool ≥40, Cold ≥20, Dormant <20." />
                   </CardTitle>
                   <p className="text-[10px] text-muted-foreground">
                     Distribución de leads impactados directa e indirectamente por pruebas A/B, campañas y acciones comerciales
@@ -1015,6 +1025,7 @@ export default function BoardKPIs() {
           <CardTitle className="font-display text-lg flex items-center gap-2">
             <Info className="h-5 w-5 text-blue-500" />
             Metodología y Definiciones
+            <InfoTooltip text="Referencia de los umbrales de color para cada KPI obligatorio. Los valores se expresan como Euromobilia / Nouvell. Los umbrales fueron definidos por la Gerencia Comercial y se comparan contra el baseline U3M (promedio de los últimos 3 meses). El sistema evalúa automáticamente el color de cada KPI en tiempo real." />
           </CardTitle>
         </CardHeader>
         <CardContent>

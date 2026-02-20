@@ -1,6 +1,7 @@
 import { differenceInDays } from "date-fns";
 import { AlertTriangle, TrendingDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useNavigate } from "react-router-dom";
@@ -61,6 +62,7 @@ export function AlertsPanel({ leads }: AlertsPanelProps) {
         <CardTitle className="flex items-center gap-2 font-display text-lg">
           <AlertTriangle className="h-5 w-5 text-amber-500" />
           Alertas
+          <InfoTooltip text="Alertas automáticas basadas en dos criterios: 1) Caída de Score: leads cuyo ECS Score bajó más de 10 puntos respecto al anterior. 2) Inactividad: leads con score ≥20 sin interacción por más de 14 días. Severidad alta si la caída es grande o la inactividad supera 30 días." />
           {sorted.length > 0 && (
             <Badge variant="destructive" className="ml-1">
               {sorted.length}

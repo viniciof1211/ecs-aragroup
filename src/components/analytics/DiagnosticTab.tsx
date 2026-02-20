@@ -14,6 +14,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Settings2 } from "lucide-react";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { EmployeeDetailDialog } from "./EmployeeDetailDialog";
 import { KPIEditorDialog } from "./KPIEditorDialog";
 import {
@@ -69,8 +70,9 @@ export function DiagnosticTab({ leads, interactions }: DiagnosticTabProps) {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card className="shadow-card">
           <CardHeader className="pb-2">
-            <CardTitle className="font-display text-lg">
+            <CardTitle className="font-display text-lg flex items-center gap-2">
               Distribución de Puntajes
+              <InfoTooltip text="Histograma que agrupa todos los leads por rango de ECS Score (0-10, 10-20, ..., 90-100). El ECS Score se calcula con un modelo multifactorial que pondera: frecuencia y recencia de interacciones, avance de etapa en el pipeline, sentimiento de notas, y canal de comunicación. Permite identificar concentraciones de leads por calidad." />
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -99,8 +101,9 @@ export function DiagnosticTab({ leads, interactions }: DiagnosticTabProps) {
 
         <Card className="shadow-card">
           <CardHeader className="pb-2">
-            <CardTitle className="font-display text-lg">
+            <CardTitle className="font-display text-lg flex items-center gap-2">
               Embudo de Conversión
+              <InfoTooltip text="Visualización 3D del pipeline de ventas. Cada nivel muestra la cantidad de leads en esa etapa (New → Contacted → Qualified → Proposal → Negotiation → Won). El porcentaje indica la tasa de conversión respecto al nivel anterior. Los datos provienen del campo 'status' de cada lead en Bitrix24." />
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -220,8 +223,9 @@ export function DiagnosticTab({ leads, interactions }: DiagnosticTabProps) {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card className="shadow-card">
           <CardHeader className="pb-2">
-            <CardTitle className="font-display text-lg">
+            <CardTitle className="font-display text-lg flex items-center gap-2">
               Efectividad por Canal
+              <InfoTooltip text="Tabla comparativa de canales de comunicación (WhatsApp, Email, Teléfono, etc.). Interacciones = total registradas. Puntaje Prom. = ECS Score promedio de leads contactados por ese canal. Resp. Prom. = tiempo promedio de primera respuesta. Conversión = % de leads ganados entre los contactados por ese canal." />
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -258,8 +262,9 @@ export function DiagnosticTab({ leads, interactions }: DiagnosticTabProps) {
 
         <Card className="shadow-card">
           <CardHeader className="pb-2">
-            <CardTitle className="font-display text-lg">
+            <CardTitle className="font-display text-lg flex items-center gap-2">
               Tiempo de Respuesta
+              <InfoTooltip text="Distribución de tiempos de primera respuesta agrupados por rango (0-5 min, 5-15 min, etc.). Se calcula midiendo el tiempo entre cada mensaje entrante y la primera respuesta saliente del equipo. La tendencia semanal muestra el promedio en minutos por semana. Meta: ≤5 minutos." />
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -308,8 +313,9 @@ export function DiagnosticTab({ leads, interactions }: DiagnosticTabProps) {
       {/* Row 3: Employee Leaderboard */}
       <Card className="shadow-card">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="font-display text-lg">
+          <CardTitle className="font-display text-lg flex items-center gap-2">
             Rendimiento por Empleado
+            <InfoTooltip text="Ranking de empleados por métricas clave. Puntaje Prom. = ECS Score promedio de sus leads asignados. Resp. Prom. = tiempo promedio de primera respuesta en minutos. Conversión = % de leads ganados. Leads Activos = leads no cerrados. Doble click en una fila para ver el detalle completo del empleado." />
           </CardTitle>
           <Button
             variant="outline"
@@ -365,8 +371,9 @@ export function DiagnosticTab({ leads, interactions }: DiagnosticTabProps) {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card className="shadow-card">
           <CardHeader className="pb-2">
-            <CardTitle className="font-display text-lg">
+            <CardTitle className="font-display text-lg flex items-center gap-2">
               Mapa de Calor de Interacciones
+              <InfoTooltip text="Mapa de calor que muestra la densidad de interacciones por día de la semana (Lun-Dom) y hora del día (0-23h). El color más intenso indica mayor volumen de actividad. Permite identificar los horarios pico de atención y posibles brechas de cobertura." />
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -407,8 +414,9 @@ export function DiagnosticTab({ leads, interactions }: DiagnosticTabProps) {
 
         <Card className="shadow-card">
           <CardHeader className="pb-2">
-            <CardTitle className="font-display text-lg">
+            <CardTitle className="font-display text-lg flex items-center gap-2">
               Comparación por Marca
+              <InfoTooltip text="Tabla comparativa por marca/división (Euromobilia, Nouvell, etc.). Leads = cantidad total asignados a esa marca. Puntaje Prom. = ECS Score promedio. Conversión = % de leads ganados. La marca se obtiene del campo 'brand' o 'division' del lead en Bitrix24." />
             </CardTitle>
           </CardHeader>
           <CardContent>

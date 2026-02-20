@@ -8,6 +8,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { format, subDays } from "date-fns";
 import type { ECSLead } from "@/types/ecs";
 
@@ -47,8 +48,9 @@ export function ScoreTrendChart({ leads }: ScoreTrendChartProps) {
   return (
     <Card className="shadow-card">
       <CardHeader className="pb-3">
-        <CardTitle className="font-display text-lg">
+        <CardTitle className="font-display text-lg flex items-center gap-2">
           Tendencia de Puntaje ECS (30 días)
+          <InfoTooltip text="Promedio diario del ECS Score de todos los leads con interacción hasta esa fecha, durante los últimos 30 días. El área sombreada muestra la evolución general de la calidad del pipeline. Una tendencia ascendente indica mejora en el engagement de los leads." />
         </CardTitle>
       </CardHeader>
       <CardContent>

@@ -40,6 +40,7 @@ import {
   Shield,
 } from "lucide-react";
 import { format } from "date-fns";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { useKPIStore } from "@/stores/useKPIStore";
 import { KPIEditorDialog } from "./KPIEditorDialog";
 import {
@@ -288,6 +289,7 @@ export function KPITab({ leads, interactions }: KPITabProps) {
             <CardTitle className="font-display text-lg flex items-center gap-2">
               <Shield className="h-4 w-4 text-red-500" />
               Vista Ejecutiva — Junta Directiva
+              <InfoTooltip text="Radar que muestra los KPIs de nivel ejecutivo normalizados a 100. Incluye Win Rate, Lead Quality y otros KPIs marcados como categoría 'board'. Cada eje representa un KPI y el valor se calcula con la fórmula definida sobre las variables del negocio en tiempo real." />
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -317,8 +319,9 @@ export function KPITab({ leads, interactions }: KPITabProps) {
         {/* Historical Trend */}
         <Card className="shadow-card">
           <CardHeader className="pb-2">
-            <CardTitle className="font-display text-lg">
+            <CardTitle className="font-display text-lg flex items-center gap-2">
               Tendencia Histórica de KPIs
+              <InfoTooltip text="Evolución de los KPIs a lo largo del tiempo basada en snapshots guardados manualmente. Cada línea representa un KPI diferente. Los snapshots capturan el valor calculado en ese momento, permitiendo comparar el progreso entre períodos." />
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -359,8 +362,9 @@ export function KPITab({ leads, interactions }: KPITabProps) {
       {/* Business Variables Table */}
       <Card className="shadow-card">
         <CardHeader className="pb-2">
-          <CardTitle className="font-display text-lg">
+          <CardTitle className="font-display text-lg flex items-center gap-2">
             Variables del Negocio (Datos en Tiempo Real)
+            <InfoTooltip text="Todas las variables calculadas en tiempo real a partir de los datos de leads e interacciones de Bitrix24 y Meta Ads. Estas variables alimentan las fórmulas de los KPIs. Incluye: conteos por estado/segmento, ingresos, tiempos de respuesta, métricas de marketing, y tasas de conversión." />
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -407,8 +411,9 @@ export function KPITab({ leads, interactions }: KPITabProps) {
       {/* KPI Definitions Table */}
       <Card className="shadow-card">
         <CardHeader className="pb-2 flex flex-row items-center justify-between">
-          <CardTitle className="font-display text-lg">
+          <CardTitle className="font-display text-lg flex items-center gap-2">
             Catálogo de KPIs ({kpiDefs.length})
+            <InfoTooltip text="Lista completa de KPIs definidos en el sistema (built-in + personalizados). Cada KPI tiene una fórmula matemática que opera sobre las variables del negocio. Las fórmulas soportan operaciones aritméticas y referencias a variables como totalLeads, wonLeads, avgECSScore, etc." />
           </CardTitle>
           <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={() => setKpiEditorOpen(true)}>
             <Settings2 className="h-3 w-3" /> Editar

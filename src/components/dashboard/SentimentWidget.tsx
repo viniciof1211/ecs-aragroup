@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useSentimentStore } from "@/stores/useSentimentStore";
 import { useSentimentHealth } from "@/hooks/useSentiment";
 import { cn } from "@/lib/utils";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 
 interface SentimentWidgetProps {
   totalLeads: number;
@@ -61,6 +62,7 @@ export function SentimentWidget({ totalLeads }: SentimentWidgetProps) {
         <CardTitle className="flex items-center gap-2 font-display text-lg">
           <Brain className="h-5 w-5 text-purple-500" />
           Sentimiento IA
+          <InfoTooltip text="Resumen del análisis de sentimiento por IA (GPT-4o-mini). Cobertura = % de leads analizados. Sentimiento Prom. = promedio del puntaje de sentimiento (-1 a +1). Positivo/Neutral/Negativo = distribución porcentual. Leads en riesgo = con alertas de IA. Señales de compra = leads con intención detectada." />
           {isOnline ? (
             <CheckCircle2 className="ml-auto h-4 w-4 text-emerald-500" />
           ) : (

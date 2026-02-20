@@ -1,5 +1,6 @@
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { channelMixData } from "@/lib/analytics-engine";
 import { CHANNEL_LABELS } from "@/types/ecs";
 import type { ECSInteraction } from "@/types/ecs";
@@ -19,8 +20,9 @@ export function ChannelMixChart({ interactions }: ChannelMixChartProps) {
   return (
     <Card className="shadow-card">
       <CardHeader className="pb-3">
-        <CardTitle className="font-display text-lg">
+        <CardTitle className="font-display text-lg flex items-center gap-2">
           Mix de Canales
+          <InfoTooltip text="Distribución porcentual de interacciones por canal de comunicación (WhatsApp, Email, Teléfono, Chat, Reunión, etc.). Los datos provienen de las interacciones registradas en Bitrix24. Permite identificar los canales más utilizados por el equipo comercial." />
         </CardTitle>
       </CardHeader>
       <CardContent>

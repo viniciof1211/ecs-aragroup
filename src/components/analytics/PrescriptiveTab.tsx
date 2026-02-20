@@ -9,6 +9,7 @@ import {
   Calculator,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -96,8 +97,9 @@ export function PrescriptiveTab({ leads, interactions }: PrescriptiveTabProps) {
       {/* Priority Action Queue */}
       <Card className="shadow-card">
         <CardHeader className="pb-2">
-          <CardTitle className="font-display text-lg">
+          <CardTitle className="font-display text-lg flex items-center gap-2">
             Cola de Acciones Prioritarias
+            <InfoTooltip text="Lista priorizada de acciones recomendadas para cada lead. La urgencia se determina por: caída de score, días sin contacto, y etapa del pipeline. El canal sugerido se basa en el historial de interacciones del lead. El impacto estimado indica los puntos de ECS Score que podría ganar el lead con la acción." />
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -186,8 +188,9 @@ export function PrescriptiveTab({ leads, interactions }: PrescriptiveTabProps) {
         {/* Campaigns */}
         <Card className="shadow-card">
           <CardHeader className="pb-2">
-            <CardTitle className="font-display text-lg">
+            <CardTitle className="font-display text-lg flex items-center gap-2">
               Campañas de Reactivación Sugeridas
+              <InfoTooltip text="Campañas prediseñadas para reactivar leads según su segmento. Fríos (score 5-40): WhatsApp personalizado. Inactivos (score <5): email con contenido de valor. Tibios (score 60-80): secuencia multi-canal. Las tasas esperadas se basan en benchmarks del sector." />
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -222,6 +225,7 @@ export function PrescriptiveTab({ leads, interactions }: PrescriptiveTabProps) {
             <CardTitle className="flex items-center gap-2 font-display text-lg">
               <Calculator className="h-5 w-5" />
               Calculadora de ROI
+              <InfoTooltip text="Simulador de retorno de inversión para campañas comerciales. Ingrese el costo, cantidad de leads objetivo y el lift esperado (% de conversión). El sistema calcula conversiones proyectadas, ingreso estimado (ticket promedio ₡2.5M), ROI porcentual y punto de equilibrio." />
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -293,8 +297,9 @@ export function PrescriptiveTab({ leads, interactions }: PrescriptiveTabProps) {
       {/* A/B Test Suggestions */}
       <Card className="shadow-card">
         <CardHeader className="pb-2">
-          <CardTitle className="font-display text-lg">
+          <CardTitle className="font-display text-lg flex items-center gap-2">
             Sugerencias de Pruebas A/B
+            <InfoTooltip text="Pruebas A/B recomendadas basadas en el análisis del pipeline actual. Cada sugerencia incluye hipótesis, métrica de éxito y tamaño de audiencia. Puede ejecutar estas pruebas desde el módulo de A/B Testing con el Cookbook de Ejecución integrado." />
           </CardTitle>
         </CardHeader>
         <CardContent>

@@ -24,6 +24,7 @@ import {
 } from "recharts";
 import { useNavigate } from "react-router-dom";
 import { AlertTriangle, TrendingDown, TrendingUp, Brain, Target, Zap, BarChart3 } from "lucide-react";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -223,6 +224,7 @@ export function PredictiveTab({ leads, activeLeads, interactions }: PredictiveTa
           <CardTitle className="font-display text-lg flex items-center gap-2">
             <Brain className="h-5 w-5 text-primary" />
             Pronóstico de Puntaje ECS (30 días)
+            <InfoTooltip text="Proyección del ECS Score promedio a 30 días usando regresión lineal sobre los últimos datos históricos. La línea sólida muestra el score real observado y la línea punteada la tendencia proyectada. El ECS Score integra frecuencia de interacciones, avance de pipeline, sentimiento y recencia." />
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -251,6 +253,7 @@ export function PredictiveTab({ leads, activeLeads, interactions }: PredictiveTa
             <CardTitle className="flex items-center gap-2 font-display text-lg">
               <TrendingUp className="h-5 w-5 text-emerald-500" />
               Impacto en Ingresos
+              <InfoTooltip text="Estimación del impacto financiero basada en leads en ascenso vs descenso. Ingresos en Riesgo = leads con score en caída × ticket promedio × 30% probabilidad de pérdida. Ingresos Potenciales = leads en ascenso × ticket promedio × 50% probabilidad de cierre. Ticket promedio estimado: ₡2.5M." />
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -279,6 +282,7 @@ export function PredictiveTab({ leads, activeLeads, interactions }: PredictiveTa
             <CardTitle className="font-display text-lg flex items-center gap-2">
               <Target className="h-5 w-5 text-blue-500" />
               Radar de Salud Predictiva
+              <InfoTooltip text="Radar de 6 dimensiones que evalúa la salud general del pipeline: Win Rate (% de leads ganados vs cerrados), Pipeline Caliente (% de leads hot+warm), Score Promedio (ECS Score global), Momentum (% de leads en ascenso), Retención (inverso de leads en descenso), Engagement (interacciones por lead)." />
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -301,6 +305,7 @@ export function PredictiveTab({ leads, activeLeads, interactions }: PredictiveTa
             <CardTitle className="font-display text-lg flex items-center gap-2">
               <Zap className="h-5 w-5 text-yellow-500" />
               Matriz de Calidad de Leads (Score vs Interacciones)
+              <InfoTooltip text="Gráfico de dispersión donde cada punto es un lead activo. Eje X = cantidad de interacciones, Eje Y = ECS Score actual. Los colores representan el segmento. Leads en la esquina superior derecha (alto score + muchas interacciones) son los más valiosos. Leads abajo-izquierda requieren atención." />
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -353,6 +358,7 @@ export function PredictiveTab({ leads, activeLeads, interactions }: PredictiveTa
             <CardTitle className="font-display text-lg flex items-center gap-2">
               <BarChart3 className="h-5 w-5 text-purple-500" />
               Distribución de Score por Segmento
+              <InfoTooltip text="Área apilada que muestra cómo se distribuyen los leads de cada segmento (Hot, Warm, Cool, Cold, Dormant) a lo largo del rango de ECS Score (0-100). Permite identificar solapamientos entre segmentos y la concentración de leads por rango de calidad." />
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -378,8 +384,9 @@ export function PredictiveTab({ leads, activeLeads, interactions }: PredictiveTa
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card className="shadow-card">
           <CardHeader className="pb-2">
-            <CardTitle className="font-display text-lg">
+            <CardTitle className="font-display text-lg flex items-center gap-2">
               Velocidad del Embudo (Días Promedio por Etapa)
+              <InfoTooltip text="Días promedio que un lead permanece en cada etapa del pipeline antes de avanzar. Se calcula desde la fecha de primera vista (first_seen) del lead. Etapas más largas indican cuellos de botella en el proceso de ventas que requieren intervención." />
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -401,8 +408,9 @@ export function PredictiveTab({ leads, activeLeads, interactions }: PredictiveTa
 
         <Card className="shadow-card">
           <CardHeader className="pb-2">
-            <CardTitle className="font-display text-lg">
+            <CardTitle className="font-display text-lg flex items-center gap-2">
               Efectividad de Canales (Tasa de Conversión)
+              <InfoTooltip text="Comparación de canales de comunicación por tasa de conversión (% de leads ganados) y ECS Score promedio. Solo incluye canales con ≥5 leads para significancia estadística. Los canales se obtienen del campo 'channels' de cada lead." />
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -424,7 +432,7 @@ export function PredictiveTab({ leads, activeLeads, interactions }: PredictiveTa
       {/* Segment Distribution */}
       <Card className="shadow-card">
         <CardHeader className="pb-2">
-          <CardTitle className="font-display text-lg">Distribución de Segmentos Actual</CardTitle>
+          <CardTitle className="font-display text-lg flex items-center gap-2">Distribución de Segmentos Actual <InfoTooltip text="Proporción de leads por segmento ECS: Hot (≥80), Warm (≥60), Cool (≥40), Cold (≥20), Dormant (<20), Lost (cerrados perdidos). La barra muestra el porcentaje relativo. Los segmentos se recalculan automáticamente con cada actualización de datos." /></CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
@@ -452,6 +460,7 @@ export function PredictiveTab({ leads, activeLeads, interactions }: PredictiveTa
           <CardTitle className="flex items-center gap-2 font-display text-lg">
             <AlertTriangle className="h-5 w-5 text-amber-500" />
             Modelo de Riesgo de Abandono (Top 20)
+            <InfoTooltip text="Los 20 leads con mayor probabilidad de abandono. El riesgo se calcula con un modelo multifactorial: días sin interacción, caída de score, falta de avance de etapa, y baja frecuencia de contacto. Los factores de riesgo y la intervención recomendada se generan automáticamente." />
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -504,6 +513,7 @@ export function PredictiveTab({ leads, activeLeads, interactions }: PredictiveTa
           <CardTitle className="font-display text-lg flex items-center gap-2">
             <Target className="h-5 w-5 text-green-600" />
             Probabilidad de Conversión — Todos los Leads ({conversionCandidates.length})
+            <InfoTooltip text="Modelo de probabilidad de conversión para todos los leads activos. Factores: ECS Score (35%), interacciones (15%), tendencia de score (15%), etapa del pipeline (hasta 20%), segmento (hasta 10%), y monto cotizado (5%). Probabilidad máxima 95%, mínima 1%." />
           </CardTitle>
         </CardHeader>
         <CardContent>

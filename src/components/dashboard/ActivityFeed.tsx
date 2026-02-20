@@ -10,6 +10,7 @@ import {
   ArrowUpRight,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { INTERACTION_TYPE_LABELS } from "@/types/ecs";
@@ -35,8 +36,9 @@ export function ActivityFeed({ interactions }: ActivityFeedProps) {
   return (
     <Card className="shadow-card">
       <CardHeader className="pb-3">
-        <CardTitle className="font-display text-lg">
+        <CardTitle className="font-display text-lg flex items-center gap-2">
           Actividad Reciente
+          <InfoTooltip text="Últimas 20 interacciones registradas en el sistema, ordenadas por fecha. Incluye llamadas, emails, WhatsApp, reuniones, notas y cambios de etapa. Las flechas indican dirección: entrante (azul) o saliente (verde). Se actualiza con cada polling de Bitrix24." />
         </CardTitle>
       </CardHeader>
       <CardContent>

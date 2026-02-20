@@ -1,5 +1,6 @@
 import { RefreshCw, CheckCircle2, XCircle, Loader2, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Button } from "@/components/ui/button";
 import { pollBitrixNow, useBitrixPollStore } from "@/hooks/useBitrixPolling";
 import { formatDistanceToNow } from "date-fns";
@@ -18,6 +19,7 @@ export function SyncStatus() {
         <CardTitle className="flex items-center gap-2 font-display text-lg">
           <RefreshCw className="h-5 w-5" />
           Estado de Sincronización
+          <InfoTooltip text="Estado de la conexión con Bitrix24 vía webhook REST API. El sistema realiza polling automático cada 180 segundos para obtener leads nuevos y actualizados. Los leads se fusionan con el caché local y se recalculan los ECS Scores automáticamente." />
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">

@@ -25,6 +25,7 @@ import {
 } from "recharts";
 import { TrendingUp, TrendingDown, Minus, Activity, Target, Clock, Users, MessageSquare, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import {
   computeEmployeeMandatoryKPIs,
   KPI_COLOR_HEX,
@@ -234,6 +235,7 @@ export function EmployeeDetailDialog({
             <CardTitle className="flex items-center gap-2 text-sm font-semibold">
               <Shield className="h-4 w-4 text-red-500" />
               KPIs Obligatorios — Semáforo
+              <InfoTooltip text="Los 4 KPIs mandatorios de la Gerencia Comercial evaluados para este empleado: Incremento de Leads (leads generados este mes vs promedio U3M), Tiempo de Respuesta (promedio en minutos de pares entrante→saliente), Incremento de Citas (showroom_visit/meeting este mes vs U3M), y Conversión Citas→Contratos (deal_won / citas). El color semáforo indica el nivel de cumplimiento." />
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -285,7 +287,7 @@ export function EmployeeDetailDialog({
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <Card className="shadow-card">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold">Perfil de Rendimiento</CardTitle>
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">Perfil de Rendimiento <InfoTooltip text="Radar de 5 dimensiones normalizadas a 100: Puntaje (ECS Score promedio de sus leads), Conversión (% de leads ganados), Leads (cantidad de leads activos, máx 100), Interacciones (total/10, máx 100), Resp. Rápida (inverso del tiempo de respuesta en segundos, 100 = instantáneo). Un polígono más amplio indica mejor rendimiento integral." /></CardTitle>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={250}>
@@ -302,7 +304,7 @@ export function EmployeeDetailDialog({
 
           <Card className="shadow-card">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold">Distribución de Leads</CardTitle>
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">Distribución de Leads <InfoTooltip text="Cantidad de leads asignados a este empleado agrupados por segmento ECS (hot, warm, cool, cold, dormant, lost). Los segmentos se determinan automáticamente por el ECS Score del lead. Permite evaluar la calidad del portafolio asignado." /></CardTitle>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={220}>
@@ -321,8 +323,9 @@ export function EmployeeDetailDialog({
         {/* Row 2: Activity timeline */}
         <Card className="shadow-card">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
               Actividad Diaria (Últimos 30 días)
+              <InfoTooltip text="Cantidad de interacciones registradas por día para este empleado en los últimos 30 días. Incluye todos los tipos: llamadas, WhatsApp, emails, visitas, notas, etc. Permite identificar patrones de actividad, días pico y posibles brechas de atención." />
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -341,8 +344,9 @@ export function EmployeeDetailDialog({
         {/* Row 3: Custom KPIs */}
         <Card className="shadow-card">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-semibold">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
               KPIs Personalizados
+              <InfoTooltip text="KPIs configurables definidos en el módulo de gestión de KPIs. Cada indicador se calcula con una fórmula sobre las variables del empleado (puntaje, tiempo de respuesta, conversión, leads activos, interacciones). Los snapshots guardan el valor actual para seguimiento histórico." />
             </CardTitle>
             <button
               onClick={handleSaveSnapshot}

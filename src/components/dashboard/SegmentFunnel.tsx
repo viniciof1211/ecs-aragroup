@@ -1,4 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { SEGMENT_CONFIGS } from "@/types/ecs";
 import type { ECSLead, Segment } from "@/types/ecs";
 
@@ -17,8 +18,9 @@ export function SegmentFunnel({ leads }: SegmentFunnelProps) {
   return (
     <Card className="shadow-card">
       <CardHeader className="pb-3">
-        <CardTitle className="font-display text-lg">
+        <CardTitle className="font-display text-lg flex items-center gap-2">
           Distribución por Segmento
+          <InfoTooltip text="Proporción de leads por segmento ECS. Los segmentos se asignan automáticamente según el ECS Score: Hot (≥80), Warm (≥60), Cool (≥40), Cold (≥20), Dormant (<20), Lost (cerrados perdidos). La barra muestra el porcentaje relativo de cada segmento sobre el total." />
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">

@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/table";
 import { useSentiment, useSentimentHealth } from "@/hooks/useSentiment";
 import { cn } from "@/lib/utils";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { translateFreeText } from "@/lib/translate-es";
 import type { ECSLead, ECSInteraction, SentimentResult } from "@/types/ecs";
 import { MetaAdsPanel } from "./MetaAdsPanel";
@@ -370,8 +371,9 @@ export function SentimentPanel({ leads, interactions }: SentimentPanelProps) {
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <Card className="shadow-card">
               <CardHeader className="pb-2">
-                <CardTitle className="font-display text-lg">
+                <CardTitle className="font-display text-lg flex items-center gap-2">
                   Distribución de Sentimiento
+                  <InfoTooltip text="Proporción de leads por categoría de sentimiento (Muy Positivo, Positivo, Neutral, Negativo, Muy Negativo). El sentimiento se calcula por un agente de IA (GPT-4o-mini) que analiza el historial completo de interacciones de cada lead, incluyendo notas, mensajes y contexto de la conversación." />
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -398,8 +400,9 @@ export function SentimentPanel({ leads, interactions }: SentimentPanelProps) {
 
             <Card className="shadow-card">
               <CardHeader className="pb-2">
-                <CardTitle className="font-display text-lg">
+                <CardTitle className="font-display text-lg flex items-center gap-2">
                   Calidad de Engagement
+                  <InfoTooltip text="Distribución de la calidad de engagement evaluada por IA: Excelente (interacciones frecuentes y positivas), Bueno, Moderado, Pobre (pocas interacciones o negativas), Mínimo (casi sin contacto). Se basa en frecuencia, tono y profundidad de las interacciones del lead." />
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -431,8 +434,9 @@ export function SentimentPanel({ leads, interactions }: SentimentPanelProps) {
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <Card className="shadow-card">
               <CardHeader className="pb-2">
-                <CardTitle className="font-display text-lg">
+                <CardTitle className="font-display text-lg flex items-center gap-2">
                   ECS Score vs Sentimiento
+                  <InfoTooltip text="Gráfico de dispersión que correlaciona el ECS Score (eje X, 0-100) con el puntaje de sentimiento de IA (eje Y, -1 a +1). Leads en la esquina superior derecha tienen alto score Y sentimiento positivo. Leads con alto score pero sentimiento negativo pueden estar en riesgo oculto." />
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -465,8 +469,9 @@ export function SentimentPanel({ leads, interactions }: SentimentPanelProps) {
             <div className="space-y-6">
               <Card className="shadow-card">
                 <CardHeader className="pb-2">
-                  <CardTitle className="font-display text-lg">
+                  <CardTitle className="font-display text-lg flex items-center gap-2">
                     Señales de Intención (Top 10)
+                    <InfoTooltip text="Las 10 señales de intención más frecuentes detectadas por el agente de IA en las interacciones de los leads. Incluye señales como 'interés en cotización', 'solicitud de visita', 'comparación de precios', etc. Permite identificar patrones de comportamiento de compra." />
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -487,8 +492,9 @@ export function SentimentPanel({ leads, interactions }: SentimentPanelProps) {
 
               <Card className="shadow-card">
                 <CardHeader className="pb-2">
-                  <CardTitle className="font-display text-lg">
+                  <CardTitle className="font-display text-lg flex items-center gap-2">
                     Alertas de Riesgo (Top 10)
+                    <InfoTooltip text="Las 10 alertas de riesgo más frecuentes identificadas por IA: falta de seguimiento, tono negativo, demora en respuesta, competencia mencionada, etc. Cada alerta indica un factor que podría llevar a la pérdida del lead si no se interviene." />
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -513,8 +519,9 @@ export function SentimentPanel({ leads, interactions }: SentimentPanelProps) {
           <Card className="shadow-card">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
-                <CardTitle className="font-display text-lg">
+                <CardTitle className="font-display text-lg flex items-center gap-2">
                   Leads por Sentimiento
+                  <InfoTooltip text="Tabla detallada de todos los leads analizados. Score = ECS Score actual. Sentimiento = puntaje de IA (-1 a +1). Calidad = nivel de engagement. Bonus = puntos adicionales al ECS Score por sentimiento positivo/negativo. Acción Recomendada = sugerencia generada por IA para cada lead." />
                 </CardTitle>
                 <span className="text-xs text-muted-foreground">
                   {visibleCount >= sortedLeads.length

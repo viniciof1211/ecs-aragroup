@@ -13,6 +13,7 @@ import {
   Card, CardContent, CardHeader, CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -227,6 +228,7 @@ export function MetaAdsPanel({ mode }: MetaAdsPanelProps) {
             <CardTitle className="font-display text-lg flex items-center gap-2">
               <DollarSign className="h-5 w-5 text-green-600" />
               Inversión y Leads Diarios
+              <InfoTooltip text="Inversión diaria en Meta Ads ($) vs cantidad de leads generados por día. Los datos provienen de la API de Meta Graph v21.0. Permite correlacionar gasto con resultados y detectar días de alto/bajo rendimiento." />
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -250,6 +252,7 @@ export function MetaAdsPanel({ mode }: MetaAdsPanelProps) {
             <CardTitle className="font-display text-lg flex items-center gap-2">
               <MousePointerClick className="h-5 w-5 text-amber-500" />
               CTR y CPL Diarios
+              <InfoTooltip text="CTR (Click-Through Rate) = Clicks / Impresiones × 100. CPL (Costo por Lead) = Inversión / Leads generados. Tendencias diarias que permiten identificar la eficiencia de las campañas y optimizar el presupuesto." />
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -273,7 +276,7 @@ export function MetaAdsPanel({ mode }: MetaAdsPanelProps) {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card className="shadow-card">
           <CardHeader className="pb-2">
-            <CardTitle className="font-display text-lg">Rendimiento por Campaña</CardTitle>
+            <CardTitle className="font-display text-lg flex items-center gap-2">Rendimiento por Campaña <InfoTooltip text="Leads y conversiones generados por cada campaña activa en Meta Ads. Las campañas se obtienen de la API de Meta y se agrupan por nombre. Permite comparar el rendimiento relativo entre campañas y priorizar presupuesto." /></CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={220}>
@@ -292,7 +295,7 @@ export function MetaAdsPanel({ mode }: MetaAdsPanelProps) {
 
         <Card className="shadow-card">
           <CardHeader className="pb-2">
-            <CardTitle className="font-display text-lg">Rendimiento por Anuncio (CTR)</CardTitle>
+            <CardTitle className="font-display text-lg flex items-center gap-2">Rendimiento por Anuncio (CTR) <InfoTooltip text="CTR individual de cada anuncio activo. Un CTR alto indica que el creativo y el copy resuenan con la audiencia. Benchmark: CTR ≥3% = excelente, 1.5-3% = aceptable, <1.5% = requiere optimización." /></CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={220}>
@@ -318,6 +321,7 @@ export function MetaAdsPanel({ mode }: MetaAdsPanelProps) {
           <CardTitle className="font-display text-lg flex items-center gap-2">
             <BarChart3 className="h-5 w-5 text-purple-500" />
             Efectividad por Tipo de Publicación
+            <InfoTooltip text="Comparación de engagement y clicks promedio por tipo de publicación (foto, video, carrusel, reel, story, link). El gráfico de pastel muestra la distribución de publicaciones por tipo. Permite identificar qué formatos generan mejor respuesta." />
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -356,6 +360,7 @@ export function MetaAdsPanel({ mode }: MetaAdsPanelProps) {
           <CardTitle className="font-display text-lg flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-yellow-500" />
             Sentimiento de Engagement por Publicación
+            <InfoTooltip text="Gráfico de dispersión: cada punto es una publicación. Eje X = alcance (personas que vieron el post), Eje Y = tasa de engagement (interacciones/alcance × 100). El tamaño del punto indica la cantidad de likes. Posts arriba-derecha son los más efectivos." />
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -392,6 +397,7 @@ export function MetaAdsPanel({ mode }: MetaAdsPanelProps) {
           <CardTitle className="font-display text-lg flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-green-600" />
             Efectividad de Publicaciones en el Tiempo
+            <InfoTooltip text="Evolución temporal del score de efectividad y la tasa de engagement de las publicaciones. El score combina alcance, interacciones y clicks en una métrica normalizada. Una tendencia ascendente indica mejora en la estrategia de contenido." />
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -412,7 +418,7 @@ export function MetaAdsPanel({ mode }: MetaAdsPanelProps) {
       {/* Ad Sentiment Table */}
       <Card className="shadow-card">
         <CardHeader className="pb-2">
-          <CardTitle className="font-display text-lg">Análisis de Sentimiento por Anuncio</CardTitle>
+          <CardTitle className="font-display text-lg flex items-center gap-2">Análisis de Sentimiento por Anuncio <InfoTooltip text="Tabla de anuncios con sentimiento derivado del CTR: Positivo (CTR ≥3%), Neutral (1.5-3%), Negativo (<1.5%). Incluye CPL y leads generados. Un sentimiento negativo sugiere que el creativo no conecta con la audiencia objetivo." /></CardTitle>
         </CardHeader>
         <CardContent>
           <ScrollArea className="h-[300px]">
@@ -462,6 +468,7 @@ export function MetaAdsPanel({ mode }: MetaAdsPanelProps) {
           <CardTitle className="font-display text-lg flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-blue-500" />
             Pronóstico de Inversión y Leads (14 días)
+            <InfoTooltip text="Proyección a 14 días de inversión y leads basada en la tendencia de los datos históricos. Las líneas continuas muestran datos reales y los últimos 14 puntos son pronósticos calculados con regresión sobre la tendencia reciente." />
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -488,6 +495,7 @@ export function MetaAdsPanel({ mode }: MetaAdsPanelProps) {
             <CardTitle className="font-display text-lg flex items-center gap-2">
               <Target className="h-5 w-5 text-purple-500" />
               Radar de Salud Publicitaria
+              <InfoTooltip text="Radar de 6 dimensiones que evalúa la salud de las campañas Meta: CTR (vs benchmark 2%), CPL (inverso normalizado), ROAS, Frecuencia (óptimo 1-3), Engagement Rate, y Alcance. Valores más altos = mejor desempeño. Permite identificar áreas de mejora rápidamente." />
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -507,6 +515,7 @@ export function MetaAdsPanel({ mode }: MetaAdsPanelProps) {
             <CardTitle className="font-display text-lg flex items-center gap-2">
               <BarChart3 className="h-5 w-5 text-cyan-500" />
               Tendencia de Efectividad por Tipo de Post
+              <InfoTooltip text="Evolución del score de efectividad y engagement rate de las publicaciones a lo largo del tiempo. Permite identificar si la estrategia de contenido está mejorando o deteriorándose, y ajustar el mix de formatos." />
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -531,6 +540,7 @@ export function MetaAdsPanel({ mode }: MetaAdsPanelProps) {
           <CardTitle className="font-display text-lg flex items-center gap-2">
             <DollarSign className="h-5 w-5 text-red-500" />
             Pronóstico de Costo por Lead
+            <InfoTooltip text="Área que muestra la tendencia del CPL (Costo por Lead) con proyección a futuro. Un CPL descendente indica optimización exitosa de campañas. Se calcula como Inversión / Leads por día. Meta ideal: CPL < $15 para el mercado de cocinas premium." />
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -557,6 +567,7 @@ export function MetaAdsPanel({ mode }: MetaAdsPanelProps) {
           <CardTitle className="font-display text-lg flex items-center gap-2">
             <Lightbulb className="h-5 w-5 text-yellow-500" />
             Recomendaciones IA — Marketing y Ads ({recommendations.length})
+            <InfoTooltip text="Recomendaciones generadas automáticamente por el motor de IA basándose en el rendimiento actual de campañas, anuncios y publicaciones. Tipos: optimizar anuncio, nuevo contenido, calentar segmento, prueba A/B. Cada recomendación incluye acciones específicas y el impacto esperado." />
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -575,6 +586,7 @@ export function MetaAdsPanel({ mode }: MetaAdsPanelProps) {
             <CardTitle className="font-display text-lg flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-purple-500" />
               Sugerencias de Contenido
+              <InfoTooltip text="Tipos de contenido recomendados basados en mejores prácticas de marketing digital para el sector de cocinas premium. Cada sugerencia incluye el formato, descripción, impacto esperado y audiencia objetivo ideal." />
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -601,6 +613,7 @@ export function MetaAdsPanel({ mode }: MetaAdsPanelProps) {
             <CardTitle className="font-display text-lg flex items-center gap-2">
               <Flame className="h-5 w-5 text-orange-500" />
               Activar Segmentos (Heat Up)
+              <InfoTooltip text="Estrategias para activar segmentos de audiencia específicos con campañas Meta Ads. Cada tarjeta muestra el segmento objetivo, la acción recomendada, el presupuesto sugerido y el resultado esperado. Ideal para convertir leads fríos en calientes." />
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">

@@ -1,5 +1,6 @@
 import { ArrowUp, ArrowDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 import type { ECSLead } from "@/types/ecs";
@@ -73,6 +74,7 @@ export function TopMovers({ leads }: TopMoversProps) {
           <CardTitle className="flex items-center gap-2 font-display text-lg">
             <ArrowUp className="h-5 w-5 text-emerald-500" />
             Top Subidas
+            <InfoTooltip text="Los 5 leads con mayor incremento de ECS Score respecto a su puntaje anterior. El delta se calcula como: Score Actual − Score Anterior. Un aumento indica mayor engagement, avance de etapa o sentimiento positivo reciente." />
           </CardTitle>
         </CardHeader>
         <CardContent>{renderList(risers, "up")}</CardContent>
@@ -83,6 +85,7 @@ export function TopMovers({ leads }: TopMoversProps) {
           <CardTitle className="flex items-center gap-2 font-display text-lg">
             <ArrowDown className="h-5 w-5 text-red-500" />
             Top Bajadas
+            <InfoTooltip text="Los 5 leads con mayor caída de ECS Score. Estos leads requieren atención inmediata: posible falta de seguimiento, sentimiento negativo, o inactividad prolongada. Se recomienda intervención del equipo comercial." />
           </CardTitle>
         </CardHeader>
         <CardContent>{renderList(decliners, "down")}</CardContent>
