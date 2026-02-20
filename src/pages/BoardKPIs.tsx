@@ -16,6 +16,8 @@ import {
   PolarGrid,
   PolarAngleAxis,
   PolarRadiusAxis,
+  ComposedChart,
+  Area,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -46,6 +48,9 @@ import {
   AlertTriangle,
   CheckCircle2,
   Info,
+  FlaskConical,
+  Activity,
+  DollarSign,
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -67,6 +72,8 @@ import {
   type MandatoryKPIId,
 } from "@/lib/board-kpi-engine";
 import type { ECSLead, ECSInteraction } from "@/types/ecs";
+import { useExperimentStore } from "@/stores/useExperimentStore";
+import { getSegmentFromScore } from "@/types/ecs";
 
 // ─── Data fetching ───
 
@@ -342,7 +349,7 @@ function UDNSection({
                       }}
                     />
                     <YAxis tick={{ fontSize: 9 }} className="fill-muted-foreground" unit=" min" />
-                    <Tooltip contentStyle={tooltipStyle} formatter={(v: number | string) => [`${Number(v).toFixed(1)} min`, "Tiempo Resp."]} />
+                    <Tooltip contentStyle={tooltipStyle} formatter={(v) => [`${Number(v ?? 0).toFixed(1)} min`, "Tiempo Resp."]} />
                     <Line
                       type="monotone"
                       dataKey="avgResponseTimeMinutes"
@@ -429,6 +436,197 @@ export default function BoardKPIs() {
       return entry;
     });
   }, [historicalSnapshots]);
+
+  // ─── A/B Test Experiment Data ───
+  const { experiments, hydrate: hydrateExperiments } = useExperimentStore();
+  useMemo(() => { hydrateExperiments(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const activeExperiments = experiments.filter((e) => e.status === "active");
+
+  // Build lead lookup for current scores
+  const leadMap = useMemo(() => {
+    const m = new Map<string, ECSLead>();
+    for (const l of leads) m.set(l.id, l);
+    return m;
+  }, [leads]);
+
+  // Composite chart data: per-experiment, per-lead current vs enrolled score + forecast
+  const abCompositeData = useMemo(() => {
+    if (activeExperiments.length === 0 || leads.length === 0) return [];
+
+    // Aggregate across all active experiments
+    const allEnrolledLeadIds = new Set<string>();
+    let totalEnrolled = 0;
+    let sumCurrentScore = 0;
+    let sumEnrolledScore = 0;
+
+    for (const exp of activeExperiments) {
+      for (const el of exp.leads) {
+        allEnrolledLeadIds.add(el.leadId);
+        totalEnrolled++;
+        const currentLead = leadMap.get(el.leadId);
+        sumCurrentScore += currentLead?.current_score ?? el.enrolledScore;
+        sumEnrolledScore += el.enrolledScore;
+      }
+    }
+
+    const avgCurrentScore = totalEnrolled > 0 ? sumCurrentScore / totalEnrolled : 0;
+    const avgEnrolledScore = totalEnrolled > 0 ? sumEnrolledScore / totalEnrolled : 0;
+    const scoreDelta = avgCurrentScore - avgEnrolledScore;
+
+    // Segment transitions: leads NOT in tests that changed segment recently
+    const nonTestLeads = leads.filter((l) => !allEnrolledLeadIds.has(l.id));
+    const transitioned = nonTestLeads.filter((l) => {
+      const currentSeg = l.segment || getSegmentFromScore(l.current_score);
+      const prevSeg = getSegmentFromScore(l.previous_score);
+      return currentSeg !== prevSeg && l.previous_score > 0;
+    });
+
+    // Segment breakdown of transitions
+    const warmToHot = transitioned.filter((l) => getSegmentFromScore(l.previous_score) === "warm" && (l.segment === "hot")).length;
+    const coldToWarm = transitioned.filter((l) => getSegmentFromScore(l.previous_score) === "cold" && (l.segment === "warm")).length;
+    const dormantToActive = transitioned.filter((l) => getSegmentFromScore(l.previous_score) === "dormant" && ["cold", "warm", "hot"].includes(l.segment)).length;
+    const downgraded = transitioned.filter((l) => l.current_score < l.previous_score).length;
+
+    // CAC & CPL computation
+    const adSpendRaw = localStorage.getItem("ecs-ad-spend");
+    const adSpend = adSpendRaw ? parseFloat(adSpendRaw) : 0;
+    const wonLeads = leads.filter((l) => l.status === "won").length;
+    const actualCAC = wonLeads > 0 && adSpend > 0 ? adSpend / wonLeads : 0;
+    const actualCPL = leads.length > 0 && adSpend > 0 ? adSpend / leads.length : 0;
+
+    // Forecast: project improvement based on experiment lift projections
+    const avgLift = activeExperiments.length > 0
+      ? activeExperiments.reduce((s, e) => s + e.projections.expectedLiftPct, 0) / activeExperiments.length
+      : 0;
+    const forecastCAC = actualCAC > 0 ? actualCAC * (1 - avgLift / 200) : 0;
+    const forecastCPL = actualCPL > 0 ? actualCPL * (1 - avgLift / 300) : 0;
+
+    // Build time-series data points for the composite chart (using experiment snapshots)
+    const timePoints: {
+      label: string;
+      avgScore: number;
+      forecastScore: number;
+      leadsInTest: number;
+      leadsTransitioned: number;
+      warmToHot: number;
+      coldToWarm: number;
+      dormantToActive: number;
+      downgraded: number;
+      actualCAC: number;
+      forecastCAC: number;
+      actualCPL: number;
+      forecastCPL: number;
+    }[] = [];
+
+    // Use snapshots from experiments to build time series
+    const allSnapshots = activeExperiments.flatMap((exp) =>
+      exp.snapshots.map((s) => ({ ...s, expId: exp.id }))
+    );
+    const snapshotDates = [...new Set(allSnapshots.map((s) => s.date))].sort();
+
+    if (snapshotDates.length > 0) {
+      for (const date of snapshotDates) {
+        const daySnaps = allSnapshots.filter((s) => s.date === date);
+        const avgA = daySnaps.reduce((s, d) => s + d.variantA.avgScore, 0) / daySnaps.length;
+        const avgB = daySnaps.reduce((s, d) => s + d.variantB.avgScore, 0) / daySnaps.length;
+        const avgSnap = (avgA + avgB) / 2;
+        const totalCount = daySnaps.reduce((s, d) => s + d.variantA.count + d.variantB.count, 0);
+
+        timePoints.push({
+          label: date.slice(5), // MM-DD
+          avgScore: Math.round(avgSnap * 10) / 10,
+          forecastScore: Math.round((avgSnap + scoreDelta * 0.3) * 10) / 10,
+          leadsInTest: totalCount,
+          leadsTransitioned: Math.round(transitioned.length / Math.max(snapshotDates.length, 1)),
+          warmToHot, coldToWarm, dormantToActive, downgraded,
+          actualCAC: Math.round(actualCAC * 100) / 100,
+          forecastCAC: Math.round(forecastCAC * 100) / 100,
+          actualCPL: Math.round(actualCPL * 100) / 100,
+          forecastCPL: Math.round(forecastCPL * 100) / 100,
+        });
+      }
+    }
+
+    // Always add a "current" point
+    timePoints.push({
+      label: "Actual",
+      avgScore: Math.round(avgCurrentScore * 10) / 10,
+      forecastScore: Math.round((avgCurrentScore + scoreDelta * 0.5) * 10) / 10,
+      leadsInTest: totalEnrolled,
+      leadsTransitioned: transitioned.length,
+      warmToHot, coldToWarm, dormantToActive, downgraded,
+      actualCAC: Math.round(actualCAC * 100) / 100,
+      forecastCAC: Math.round(forecastCAC * 100) / 100,
+      actualCPL: Math.round(actualCPL * 100) / 100,
+      forecastCPL: Math.round(forecastCPL * 100) / 100,
+    });
+
+    // Add forecast points
+    for (let i = 1; i <= 3; i++) {
+      const projScore = avgCurrentScore + scoreDelta * (0.5 + i * 0.15);
+      const projCAC = forecastCAC * (1 - i * 0.02);
+      const projCPL = forecastCPL * (1 - i * 0.015);
+      timePoints.push({
+        label: `+${i * 7}d`,
+        avgScore: 0, // no actual data for future
+        forecastScore: Math.round(Math.max(0, Math.min(100, projScore)) * 10) / 10,
+        leadsInTest: totalEnrolled,
+        leadsTransitioned: Math.round(transitioned.length * (1 + i * 0.1)),
+        warmToHot: Math.round(warmToHot * (1 + i * 0.15)),
+        coldToWarm: Math.round(coldToWarm * (1 + i * 0.1)),
+        dormantToActive: Math.round(dormantToActive * (1 + i * 0.08)),
+        downgraded: Math.max(0, Math.round(downgraded * (1 - i * 0.1))),
+        actualCAC: 0,
+        forecastCAC: Math.round(Math.max(0, projCAC) * 100) / 100,
+        actualCPL: 0,
+        forecastCPL: Math.round(Math.max(0, projCPL) * 100) / 100,
+      });
+    }
+
+    return timePoints;
+  }, [activeExperiments, leads, leadMap]);
+
+  // Segment transition summary for the bar chart
+  const segmentTransitionData = useMemo(() => {
+    if (leads.length === 0) return [];
+
+    const allEnrolledIds = new Set<string>();
+    for (const exp of activeExperiments) {
+      for (const el of exp.leads) allEnrolledIds.add(el.leadId);
+    }
+
+    const segments = ["hot", "warm", "cool", "cold", "dormant", "lost"] as const;
+    const segLabels: Record<string, string> = {
+      hot: "Caliente", warm: "Tibio", cool: "Fresco",
+      cold: "Frío", dormant: "Inactivo", lost: "Perdido",
+    };
+
+    return segments.map((seg) => {
+      const inTest = leads.filter((l) => allEnrolledIds.has(l.id) && (l.segment === seg || getSegmentFromScore(l.current_score) === seg)).length;
+      const notInTest = leads.filter((l) => !allEnrolledIds.has(l.id) && (l.segment === seg || getSegmentFromScore(l.current_score) === seg)).length;
+      const transUp = leads.filter((l) => {
+        if (l.previous_score <= 0) return false;
+        const prev = getSegmentFromScore(l.previous_score);
+        const curr = l.segment || getSegmentFromScore(l.current_score);
+        return curr === seg && prev !== seg && l.current_score > l.previous_score;
+      }).length;
+      const transDown = leads.filter((l) => {
+        if (l.previous_score <= 0) return false;
+        const prev = getSegmentFromScore(l.previous_score);
+        const curr = l.segment || getSegmentFromScore(l.current_score);
+        return curr === seg && prev !== seg && l.current_score < l.previous_score;
+      }).length;
+
+      return {
+        segment: segLabels[seg] ?? seg,
+        "En Test A/B": inTest,
+        "Fuera de Test": notInTest,
+        "Transición ↑": transUp,
+        "Transición ↓": transDown,
+      };
+    });
+  }, [leads, activeExperiments]);
 
   return (
     <div className="space-y-6">
@@ -634,6 +832,183 @@ export default function BoardKPIs() {
         </Card>
       )}
 
+      {/* ═══════════════════════════════════════════════════════════════
+           A/B Test Execution — Composite Dashboard
+           ═══════════════════════════════════════════════════════════════ */}
+      <Card className="shadow-card border-t-4 border-t-emerald-500">
+        <CardHeader className="pb-2">
+          <CardTitle className="font-display text-lg flex items-center gap-2">
+            <FlaskConical className="h-5 w-5 text-emerald-500" />
+            Pruebas A/B en Ejecución — Impacto en Tiempo Real
+          </CardTitle>
+          <p className="text-xs text-muted-foreground mt-1">
+            {activeExperiments.length > 0
+              ? `${activeExperiments.length} experimento(s) activo(s) · ${activeExperiments.reduce((s, e) => s + e.leads.length, 0)} leads en prueba`
+              : "Sin experimentos activos — los datos se poblarán al ejecutar pruebas A/B"}
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {abCompositeData.length > 0 ? (
+            <>
+              {/* Row 1: ECS Score Actual vs Forecast + CAC/CPL */}
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                {/* ECS Score: Actual line + Forecast trend + Leads bar */}
+                <Card className="shadow-sm border">
+                  <CardHeader className="pb-1 pt-3 px-4">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <Activity className="h-4 w-4 text-emerald-500" />
+                      ECS Score — Actual vs Pronóstico
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="px-2 pb-3">
+                    <ResponsiveContainer width="100%" height={260}>
+                      <ComposedChart data={abCompositeData}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                        <XAxis dataKey="label" tick={{ fontSize: 9 }} className="fill-muted-foreground" />
+                        <YAxis yAxisId="score" tick={{ fontSize: 9 }} className="fill-muted-foreground" domain={[0, 100]} />
+                        <YAxis yAxisId="count" orientation="right" tick={{ fontSize: 9 }} className="fill-muted-foreground" />
+                        <Tooltip contentStyle={tooltipStyle} />
+                        <Legend wrapperStyle={{ fontSize: 9 }} />
+                        <Bar yAxisId="count" dataKey="leadsInTest" name="Leads en Test" fill="#1A4A2830" radius={[3, 3, 0, 0]} />
+                        <Bar yAxisId="count" dataKey="leadsTransitioned" name="Leads Transicionados" fill="#8B5CF620" radius={[3, 3, 0, 0]} />
+                        <Line yAxisId="score" type="monotone" dataKey="avgScore" name="ECS Score Actual" stroke="#22C55E" strokeWidth={2.5} dot={{ r: 4, fill: "#22C55E" }} connectNulls={false} />
+                        <Line yAxisId="score" type="monotone" dataKey="forecastScore" name="Pronóstico ECS" stroke="#22C55E" strokeWidth={2} strokeDasharray="8 4" dot={{ r: 3, fill: "#22C55E", strokeDasharray: "" }} />
+                        <Area yAxisId="score" type="monotone" dataKey="forecastScore" fill="#22C55E" fillOpacity={0.08} stroke="none" />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+
+                {/* CAC & CPL: Actual vs Forecast */}
+                <Card className="shadow-sm border">
+                  <CardHeader className="pb-1 pt-3 px-4">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <DollarSign className="h-4 w-4 text-amber-500" />
+                      CAC y CPL — Actual vs Pronóstico
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="px-2 pb-3">
+                    <ResponsiveContainer width="100%" height={260}>
+                      <ComposedChart data={abCompositeData}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                        <XAxis dataKey="label" tick={{ fontSize: 9 }} className="fill-muted-foreground" />
+                        <YAxis tick={{ fontSize: 9 }} className="fill-muted-foreground" unit="$" />
+                        <Tooltip contentStyle={tooltipStyle} formatter={(v) => [`$${Number(v ?? 0).toFixed(2)}`, ""]} />
+                        <Legend wrapperStyle={{ fontSize: 9 }} />
+                        <Line type="monotone" dataKey="actualCAC" name="CAC Actual" stroke="#EF4444" strokeWidth={2.5} dot={{ r: 4, fill: "#EF4444" }} connectNulls={false} />
+                        <Line type="monotone" dataKey="forecastCAC" name="CAC Pronóstico" stroke="#EF4444" strokeWidth={2} strokeDasharray="8 4" dot={{ r: 3, fill: "#EF4444", strokeDasharray: "" }} />
+                        <Area type="monotone" dataKey="forecastCAC" fill="#EF4444" fillOpacity={0.06} stroke="none" />
+                        <Line type="monotone" dataKey="actualCPL" name="CPL Actual" stroke="#3B82F6" strokeWidth={2.5} dot={{ r: 4, fill: "#3B82F6" }} connectNulls={false} />
+                        <Line type="monotone" dataKey="forecastCPL" name="CPL Pronóstico" stroke="#3B82F6" strokeWidth={2} strokeDasharray="8 4" dot={{ r: 3, fill: "#3B82F6", strokeDasharray: "" }} />
+                        <Area type="monotone" dataKey="forecastCPL" fill="#3B82F6" fillOpacity={0.06} stroke="none" />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Row 2: Segment Impact — Leads in test vs transitions */}
+              <Card className="shadow-sm border">
+                <CardHeader className="pb-1 pt-3 px-4">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Users className="h-4 w-4 text-purple-500" />
+                    Impacto por Segmento — Leads en Test y Transiciones
+                  </CardTitle>
+                  <p className="text-[10px] text-muted-foreground">
+                    Distribución de leads impactados directa e indirectamente por pruebas A/B, campañas y acciones comerciales
+                  </p>
+                </CardHeader>
+                <CardContent className="px-2 pb-3">
+                  <ResponsiveContainer width="100%" height={280}>
+                    <BarChart data={segmentTransitionData} barCategoryGap="20%">
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                      <XAxis dataKey="segment" tick={{ fontSize: 9 }} className="fill-muted-foreground" />
+                      <YAxis tick={{ fontSize: 9 }} className="fill-muted-foreground" />
+                      <Tooltip contentStyle={tooltipStyle} />
+                      <Legend wrapperStyle={{ fontSize: 9 }} />
+                      <Bar dataKey="En Test A/B" stackId="a" fill="#22C55E" radius={[0, 0, 0, 0]} />
+                      <Bar dataKey="Fuera de Test" stackId="a" fill="#3B82F6" radius={[0, 0, 0, 0]} />
+                      <Bar dataKey="Transición ↑" fill="#F59E0B" radius={[3, 3, 0, 0]} />
+                      <Bar dataKey="Transición ↓" fill="#EF4444" radius={[3, 3, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              {/* Active Experiments Summary Table */}
+              {activeExperiments.length > 0 && (
+                <Card className="shadow-sm border">
+                  <CardHeader className="pb-1 pt-3 px-4">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <FlaskConical className="h-4 w-4 text-emerald-500" />
+                      Experimentos Activos — Resumen
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="min-w-[180px]">Experimento</TableHead>
+                            <TableHead className="text-center">Categoría</TableHead>
+                            <TableHead className="text-center">Leads</TableHead>
+                            <TableHead className="text-center">Lift Esperado</TableHead>
+                            <TableHead className="text-center">Conv. Esperadas</TableHead>
+                            <TableHead className="text-center">Snapshots</TableHead>
+                            <TableHead className="text-center">Estado</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {activeExperiments.map((exp) => (
+                            <TableRow key={exp.id}>
+                              <TableCell className="text-xs font-medium whitespace-normal break-words max-w-[220px]">
+                                {exp.test.title}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <Badge variant="secondary" className="text-[9px]">
+                                  {exp.test.category}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-center text-xs font-mono">{exp.leads.length}</TableCell>
+                              <TableCell className="text-center text-xs font-mono text-emerald-600">
+                                +{exp.projections.expectedLiftPct}%
+                              </TableCell>
+                              <TableCell className="text-center text-xs font-mono">
+                                {exp.projections.expectedConversions}
+                              </TableCell>
+                              <TableCell className="text-center text-xs font-mono">
+                                {exp.snapshots.length}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <Badge className="text-[9px] bg-emerald-500/15 text-emerald-600 border-emerald-500/30">
+                                  Activo
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+              <FlaskConical className="h-12 w-12 opacity-20" />
+              <p className="mt-3 text-sm font-medium">Sin Pruebas A/B Activas</p>
+              <p className="text-xs mt-1">
+                Ejecuta pruebas desde la sección "Pruebas A/B" para ver el impacto en tiempo real aquí.
+              </p>
+              <p className="text-[10px] mt-3 max-w-md text-center">
+                Este panel mostrará: ECS Score actual vs pronóstico, CAC y CPL con tendencias predictivas,
+                cantidad de leads impactados dentro y fuera de las pruebas, y transiciones de segmento.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Methodology Reference */}
       <Card className="shadow-card">
         <CardHeader className="pb-2">
@@ -644,21 +1019,21 @@ export default function BoardKPIs() {
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
-            <Table>
+            <Table className="table-fixed w-full min-w-[700px]">
               <TableHeader>
                 <TableRow>
-                  <TableHead>KPI</TableHead>
-                  <TableHead>Metodología</TableHead>
-                  <TableHead className="text-center">
+                  <TableHead className="w-[15%]">KPI</TableHead>
+                  <TableHead className="w-[37%]">Metodología</TableHead>
+                  <TableHead className="w-[12%] text-center">
                     <span className="inline-block h-2.5 w-2.5 rounded-full bg-blue-500 mr-1" />Azul
                   </TableHead>
-                  <TableHead className="text-center">
+                  <TableHead className="w-[12%] text-center">
                     <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-500 mr-1" />Verde
                   </TableHead>
-                  <TableHead className="text-center">
+                  <TableHead className="w-[12%] text-center">
                     <span className="inline-block h-2.5 w-2.5 rounded-full bg-yellow-500 mr-1" />Amarillo
                   </TableHead>
-                  <TableHead className="text-center">
+                  <TableHead className="w-[12%] text-center">
                     <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-500 mr-1" />Rojo
                   </TableHead>
                 </TableRow>
@@ -666,24 +1041,24 @@ export default function BoardKPIs() {
               <TableBody>
                 {MANDATORY_KPIS.map((kpi) => (
                   <TableRow key={kpi.id}>
-                    <TableCell className="font-medium text-xs">{kpi.name}</TableCell>
-                    <TableCell className="text-[10px] text-muted-foreground max-w-[300px]">{kpi.methodology}</TableCell>
-                    <TableCell className="text-center text-[10px] font-medium text-blue-600">
+                    <TableCell className="font-medium text-xs whitespace-normal break-words align-top">{kpi.name}</TableCell>
+                    <TableCell className="text-[10px] text-muted-foreground whitespace-normal break-words leading-relaxed align-top">{kpi.methodology}</TableCell>
+                    <TableCell className="text-center text-[10px] font-medium text-blue-600 whitespace-normal align-top">
                       {kpi.id === "response_time"
                         ? "≤5 / ≤4 min"
                         : `≥+${kpi.thresholds.euromobilia.azul.min}% / ≥+${kpi.thresholds.nouvell.azul.min}%`}
                     </TableCell>
-                    <TableCell className="text-center text-[10px] font-medium text-green-600">
+                    <TableCell className="text-center text-[10px] font-medium text-green-600 whitespace-normal align-top">
                       {kpi.id === "response_time"
                         ? "5-7 / 4-5 min"
                         : `+${kpi.thresholds.euromobilia.verde.min}-${kpi.thresholds.euromobilia.verde.max}% / +${kpi.thresholds.nouvell.verde.min}-${kpi.thresholds.nouvell.verde.max}%`}
                     </TableCell>
-                    <TableCell className="text-center text-[10px] font-medium text-yellow-600">
+                    <TableCell className="text-center text-[10px] font-medium text-yellow-600 whitespace-normal align-top">
                       {kpi.id === "response_time"
                         ? "7-10 / 5-7.5 min"
                         : `+${kpi.thresholds.euromobilia.amarillo.min}-${kpi.thresholds.euromobilia.amarillo.max}% / +${kpi.thresholds.nouvell.amarillo.min}-${kpi.thresholds.nouvell.amarillo.max}%`}
                     </TableCell>
-                    <TableCell className="text-center text-[10px] font-medium text-red-600">
+                    <TableCell className="text-center text-[10px] font-medium text-red-600 whitespace-normal align-top">
                       {kpi.id === "response_time"
                         ? ">10 / >7.5 min"
                         : `<+${kpi.thresholds.euromobilia.amarillo.min}% / <+${kpi.thresholds.nouvell.amarillo.min}%`}
