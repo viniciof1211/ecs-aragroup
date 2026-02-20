@@ -23,7 +23,15 @@ import {
   PolarRadiusAxis,
   Legend,
 } from "recharts";
-import { TrendingUp, TrendingDown, Minus, Activity, Target, Clock, Users, MessageSquare } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Activity, Target, Clock, Users, MessageSquare, Shield } from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  computeEmployeeMandatoryKPIs,
+  KPI_COLOR_HEX,
+  KPI_COLOR_LABELS,
+  type EmployeeMandatoryKPI,
+  type KPIColor,
+} from "@/lib/board-kpi-engine";
 import { useKPIStore } from "@/stores/useKPIStore";
 import { evaluateKPIFormula } from "@/types/employee-kpi";
 import type { EmployeeStats } from "@/types/ecs";
@@ -121,13 +129,19 @@ export function EmployeeDetailDialog({
   const radarData = useMemo(() => {
     if (!employee) return [];
     return [
-      { subject: "Puntaje", value: Math.min(employee.avgScore, 100), max: 100 },
-      { subject: "Conversión", value: Math.min(employee.conversionRate, 100), max: 100 },
-      { subject: "Leads", value: Math.min(employee.activeLeads, 100), max: 100 },
-      { subject: "Interacciones", value: Math.min(employee.totalInteractions / 10, 100), max: 100 },
-      { subject: "Resp. Rápida", value: employee.responseTime > 0 ? Math.max(0, 100 - employee.responseTime / 60) : 50, max: 100 },
+      { subject: "Puntaje", value: Math.min(employee.avgScore, 100), fullMark: 100 },
+      { subject: "Conversión", value: Math.min(employee.conversionRate, 100), fullMark: 100 },
+      { subject: "Leads", value: Math.min(employee.activeLeads, 100), fullMark: 100 },
+      { subject: "Interacciones", value: Math.min(employee.totalInteractions / 10, 100), fullMark: 100 },
+      { subject: "Resp. Rápida", value: employee.responseTime > 0 ? Math.max(0, 100 - employee.responseTime / 60) : 50, fullMark: 100 },
     ];
   }, [employee]);
+
+  // Mandatory KPI semaphore
+  const mandatoryKPIs = useMemo(() => {
+    if (!employee) return [];
+    return computeEmployeeMandatoryKPIs(employee.employee, leads, interactions);
+  }, [employee, leads, interactions]);
 
   // Segment distribution of employee's leads
   const segmentDist = useMemo(() => {
@@ -214,6 +228,59 @@ export function EmployeeDetailDialog({
           />
         </div>
 
+        {/* Mandatory KPI Semaphore */}
+        <Card className="shadow-card border-t-4 border-t-red-500">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+              <Shield className="h-4 w-4 text-red-500" />
+              KPIs Obligatorios — Semáforo
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {mandatoryKPIs.map((mkpi) => (
+                <div
+                  key={mkpi.kpiId}
+                  className={cn(
+                    "relative rounded-lg border p-3 text-center transition-all",
+                    mkpi.color === "azul" && "border-blue-400/50 bg-blue-50/40 dark:bg-blue-950/20",
+                    mkpi.color === "verde" && "border-green-400/50 bg-green-50/40 dark:bg-green-950/20",
+                    mkpi.color === "amarillo" && "border-yellow-400/50 bg-yellow-50/40 dark:bg-yellow-950/20",
+                    mkpi.color === "rojo" && "border-red-400/50 bg-red-50/40 dark:bg-red-950/20",
+                  )}
+                >
+                  {/* Semaphore dot */}
+                  <div className="absolute right-2 top-2">
+                    <div
+                      className="h-3 w-3 rounded-full ring-2 ring-offset-1 ring-offset-background"
+                      style={{ backgroundColor: KPI_COLOR_HEX[mkpi.color], boxShadow: `0 0 8px ${KPI_COLOR_HEX[mkpi.color]}50` }}
+                      title={KPI_COLOR_LABELS[mkpi.color]}
+                    />
+                  </div>
+                  <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground pr-4">
+                    {mkpi.kpiName}
+                  </p>
+                  <p
+                    className="mt-1 font-display text-lg font-bold"
+                    style={{ color: KPI_COLOR_HEX[mkpi.color] }}
+                  >
+                    {mkpi.displayValue}
+                  </p>
+                  <p className="mt-0.5 text-[8px] text-muted-foreground leading-tight">
+                    {mkpi.description}
+                  </p>
+                  <p
+                    className="mt-1 text-[9px] font-semibold"
+                    style={{ color: KPI_COLOR_HEX[mkpi.color] }}
+                  >
+                    {KPI_COLOR_LABELS[mkpi.color]}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Row 1: Radar + Segment Distribution */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <Card className="shadow-card">
@@ -221,12 +288,13 @@ export function EmployeeDetailDialog({
               <CardTitle className="text-sm font-semibold">Perfil de Rendimiento</CardTitle>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={220}>
-                <RadarChart data={radarData}>
+              <ResponsiveContainer width="100%" height={250}>
+                <RadarChart cx="50%" cy="50%" outerRadius="75%" data={radarData}>
                   <PolarGrid className="stroke-border" />
                   <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10 }} className="fill-muted-foreground" />
-                  <PolarRadiusAxis angle={90} domain={[0, 100]} tick={false} />
-                  <Radar name="Rendimiento" dataKey="value" stroke="#1A4A28" fill="#1A4A28" fillOpacity={0.25} strokeWidth={2} />
+                  <PolarRadiusAxis domain={[0, 100]} tick={{ fontSize: 8 }} className="fill-muted-foreground" />
+                  <Radar name="Rendimiento" dataKey="value" stroke="#1A4A28" fill="#1A4A28" fillOpacity={0.3} strokeWidth={2} dot={{ r: 3, fill: "#1A4A28" }} />
+                  <Tooltip contentStyle={tooltipStyle} />
                 </RadarChart>
               </ResponsiveContainer>
             </CardContent>

@@ -503,6 +503,155 @@ export function computeBoardKPIs(
   return { results, monthlyMetrics };
 }
 
+// ─── Per-Employee Mandatory KPI Semaphore ───
+
+export interface EmployeeMandatoryKPI {
+  kpiId: MandatoryKPIId;
+  kpiName: string;
+  value: number;
+  displayValue: string;
+  color: KPIColor;
+  description: string;
+}
+
+/**
+ * Compute the 4 mandatory KPIs scoped to a specific employee's leads and interactions.
+ * Uses simplified thresholds (average of both UDN thresholds) since employee may span UDNs.
+ */
+export function computeEmployeeMandatoryKPIs(
+  employeeName: string,
+  allLeads: ECSLead[],
+  allInteractions: ECSInteraction[],
+): EmployeeMandatoryKPI[] {
+  const empLeads = allLeads.filter((l) => l.employees?.includes(employeeName));
+  const empLeadIds = new Set(empLeads.map((l) => l.id));
+  const empInteractions = allInteractions.filter((i) => empLeadIds.has(i.lead_id) || i.employee === employeeName);
+
+  const now = new Date();
+  const currentMonth = format(startOfMonth(now), "yyyy-MM");
+
+  // ── 1. Leads generated this month ──
+  const leadsThisMonth = empLeads.filter((l) => {
+    try { return format(startOfMonth(parseISO(l.created_at)), "yyyy-MM") === currentMonth; } catch { return false; }
+  }).length;
+
+  // Leads in previous 3 months (U3M baseline)
+  const u3mMonths: string[] = [];
+  for (let i = 1; i <= 3; i++) u3mMonths.push(format(subMonths(startOfMonth(now), i), "yyyy-MM"));
+  const leadsU3M = empLeads.filter((l) => {
+    try { return u3mMonths.includes(format(startOfMonth(parseISO(l.created_at)), "yyyy-MM")); } catch { return false; }
+  }).length;
+  const avgLeadsU3M = leadsU3M / 3;
+  const leadGrowthPct = avgLeadsU3M > 0 ? ((leadsThisMonth - avgLeadsU3M) / avgLeadsU3M) * 100 : 0;
+
+  // ── 2. Response time (minutes) ──
+  const responseTimes: number[] = [];
+  for (const i of empInteractions) {
+    if (i.first_response_seconds && i.first_response_seconds > 0 && i.first_response_seconds < 86400) {
+      responseTimes.push(i.first_response_seconds);
+    }
+  }
+  // Also compute from inbound→outbound pairs
+  const byLead = new Map<string, typeof empInteractions>();
+  for (const i of empInteractions) {
+    if (!i.lead_id || !i.timestamp) continue;
+    if (!byLead.has(i.lead_id)) byLead.set(i.lead_id, []);
+    byLead.get(i.lead_id)!.push(i);
+  }
+  for (const [, ints] of byLead) {
+    ints.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+    for (let j = 0; j < ints.length; j++) {
+      if (ints[j].direction !== "entrante") continue;
+      for (let k = j + 1; k < ints.length; k++) {
+        if (ints[k].direction === "saliente") {
+          const diff = (new Date(ints[k].timestamp).getTime() - new Date(ints[j].timestamp).getTime()) / 1000;
+          if (diff > 0 && diff < 86400) responseTimes.push(diff);
+          break;
+        }
+      }
+    }
+  }
+  const avgRespMin = responseTimes.length > 0
+    ? (responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length) / 60
+    : 0;
+
+  // ── 3. Appointments generated this month ──
+  const appointmentsThisMonth = empInteractions.filter((i) => {
+    if (i.type !== "showroom_visit" && i.type !== "meeting") return false;
+    try { return format(startOfMonth(parseISO(i.timestamp)), "yyyy-MM") === currentMonth; } catch { return false; }
+  }).length;
+  const appointmentsU3M = empInteractions.filter((i) => {
+    if (i.type !== "showroom_visit" && i.type !== "meeting") return false;
+    try { return u3mMonths.includes(format(startOfMonth(parseISO(i.timestamp)), "yyyy-MM")); } catch { return false; }
+  }).length;
+  const avgApptsU3M = appointmentsU3M / 3;
+  const apptGrowthPct = avgApptsU3M > 0 ? ((appointmentsThisMonth - avgApptsU3M) / avgApptsU3M) * 100 : 0;
+
+  // ── 4. Conversion: appointments → contracts with deposit ──
+  const contractsThisMonth = empInteractions.filter((i) => {
+    if (i.type !== "deal_won") return false;
+    try { return format(startOfMonth(parseISO(i.timestamp)), "yyyy-MM") === currentMonth; } catch { return false; }
+  }).length;
+  const conversionPct = appointmentsThisMonth > 0 ? (contractsThisMonth / appointmentsThisMonth) * 100 : 0;
+  const contractsU3M = empInteractions.filter((i) => {
+    if (i.type !== "deal_won") return false;
+    try { return u3mMonths.includes(format(startOfMonth(parseISO(i.timestamp)), "yyyy-MM")); } catch { return false; }
+  }).length;
+  const baseConvPct = avgApptsU3M > 0 ? ((contractsU3M / 3) / avgApptsU3M) * 100 : 0;
+  const convGrowthPct = baseConvPct > 0 ? ((conversionPct - baseConvPct) / baseConvPct) * 100 : 0;
+
+  // ── Color assignment (averaged thresholds across UDNs) ──
+  function growthColor(pct: number, azulMin: number, verdeMin: number, amarilloMin: number): KPIColor {
+    if (pct >= azulMin) return "azul";
+    if (pct >= verdeMin) return "verde";
+    if (pct >= amarilloMin) return "amarillo";
+    return "rojo";
+  }
+
+  function respTimeColor(min: number): KPIColor {
+    if (min <= 0) return "verde"; // no data
+    if (min <= 4.5) return "azul";
+    if (min <= 6) return "verde";
+    if (min <= 8.75) return "amarillo";
+    return "rojo";
+  }
+
+  return [
+    {
+      kpiId: "lead_growth",
+      kpiName: "Incremento Leads",
+      value: leadsThisMonth,
+      displayValue: avgLeadsU3M > 0 ? `${leadGrowthPct >= 0 ? "+" : ""}${leadGrowthPct.toFixed(0)}%` : `${leadsThisMonth}`,
+      color: growthColor(leadGrowthPct, 25, 17.5, 10),
+      description: `${leadsThisMonth} leads este mes vs ${avgLeadsU3M.toFixed(0)} prom. U3M`,
+    },
+    {
+      kpiId: "response_time",
+      kpiName: "Tiempo Respuesta",
+      value: avgRespMin,
+      displayValue: avgRespMin > 0 ? `${avgRespMin.toFixed(1)} min` : "—",
+      color: respTimeColor(avgRespMin),
+      description: avgRespMin > 0 ? `Promedio ${avgRespMin.toFixed(1)} min (meta ≤5 min)` : "Sin datos de respuesta",
+    },
+    {
+      kpiId: "appointment_growth",
+      kpiName: "Incremento Citas",
+      value: appointmentsThisMonth,
+      displayValue: avgApptsU3M > 0 ? `${apptGrowthPct >= 0 ? "+" : ""}${apptGrowthPct.toFixed(0)}%` : `${appointmentsThisMonth}`,
+      color: growthColor(apptGrowthPct, 45, 35, 25),
+      description: `${appointmentsThisMonth} citas este mes vs ${avgApptsU3M.toFixed(0)} prom. U3M`,
+    },
+    {
+      kpiId: "conversion_rate",
+      kpiName: "Conversión Citas→Contratos",
+      value: conversionPct,
+      displayValue: `${conversionPct.toFixed(1)}%`,
+      color: growthColor(convGrowthPct, 20, 15, 10),
+      description: `${contractsThisMonth} contratos / ${appointmentsThisMonth} citas (${conversionPct.toFixed(1)}%)`,
+    },
+  ];
+}
+
 // ─── Persistence for monthly snapshots ───
 
 const BOARD_SNAPSHOTS_KEY = "ecs-board-kpi-snapshots";
