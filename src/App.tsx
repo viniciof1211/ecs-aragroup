@@ -10,6 +10,7 @@ const Analytics = lazy(() => import('@/pages/Analytics'))
 const Automation = lazy(() => import('@/pages/Automation'))
 const ABTesting = lazy(() => import('@/pages/ABTesting'))
 const Settings = lazy(() => import('@/pages/Settings'))
+const BoardKPIs = lazy(() => import('@/pages/BoardKPIs'))
 const WhatsAppManager = lazy(() => import('@/pages/WhatsAppManager'))
 
 function PageLoader() {
@@ -32,6 +33,7 @@ function App() {
           <Route path="/automation" element={<Automation />} />
           <Route path="/ab-testing" element={<ABTesting />} />
           <Route path="/whatsapp" element={<WhatsAppManager />} />
+          <Route path="/board-kpis" element={<BoardKPIs />} />
           <Route path="/settings" element={<Settings />} />
         </Route>
       </Routes>
