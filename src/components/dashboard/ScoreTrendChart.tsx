@@ -9,7 +9,8 @@ import {
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
-import { format, subDays } from "date-fns";
+import { format, subDays, differenceInCalendarDays } from "date-fns";
+import { useTimeRangeStore, getTimeRangeCutoff } from "@/stores/useTimeRangeStore";
 import type { ECSLead } from "@/types/ecs";
 
 interface ScoreTrendChartProps {
@@ -17,8 +18,15 @@ interface ScoreTrendChartProps {
 }
 
 export function ScoreTrendChart({ leads }: ScoreTrendChartProps) {
+  const range = useTimeRangeStore((s) => s.range);
   const now = new Date();
   const data: { date: string; avg: number }[] = [];
+
+  // Determine how many days to show based on the global time filter
+  const cutoff = getTimeRangeCutoff(range);
+  const totalDays = cutoff
+    ? differenceInCalendarDays(now, cutoff)
+    : 180; // "all" → show last 180 days
 
   // Pre-compute lead dates once (avoid O(days × leads) format calls)
   const leadDates = leads
@@ -28,10 +36,15 @@ export function ScoreTrendChart({ leads }: ScoreTrendChartProps) {
       score: l.current_score,
     }));
 
-  for (let i = 30; i >= 0; i--) {
+  // For large ranges, sample fewer points to keep the chart readable
+  const step = totalDays > 90 ? Math.ceil(totalDays / 90) : 1;
+
+  for (let i = totalDays; i >= 0; i -= step) {
     const day = subDays(now, i);
     const dayStr = format(day, "yyyy-MM-dd");
-    const dayLabel = format(day, "dd/MM");
+    const dayLabel = totalDays > 60
+      ? format(day, "dd/MM/yy")
+      : format(day, "dd/MM");
 
     const dayLeads = leadDates.filter((l) => l.dateStr <= dayStr);
 
@@ -49,8 +62,8 @@ export function ScoreTrendChart({ leads }: ScoreTrendChartProps) {
     <Card className="shadow-card">
       <CardHeader className="pb-3">
         <CardTitle className="font-display text-lg flex items-center gap-2">
-          Tendencia de Puntaje ECS (30 días)
-          <InfoTooltip text="Promedio diario del ECS Score de todos los leads con interacción hasta esa fecha, durante los últimos 30 días. El área sombreada muestra la evolución general de la calidad del pipeline. Una tendencia ascendente indica mejora en el engagement de los leads." />
+          Tendencia de Puntaje ECS
+          <InfoTooltip text="Promedio diario del ECS Score de todos los leads con interacción hasta esa fecha, filtrado según el rango de tiempo global seleccionado. El área sombreada muestra la evolución general de la calidad del pipeline. Una tendencia ascendente indica mejora en el engagement de los leads." />
         </CardTitle>
       </CardHeader>
       <CardContent>
