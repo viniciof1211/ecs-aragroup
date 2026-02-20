@@ -30,8 +30,6 @@ import {
   computeEmployeeMandatoryKPIs,
   KPI_COLOR_HEX,
   KPI_COLOR_LABELS,
-  type EmployeeMandatoryKPI,
-  type KPIColor,
 } from "@/lib/board-kpi-engine";
 import { useKPIStore } from "@/stores/useKPIStore";
 import { evaluateKPIFormula } from "@/types/employee-kpi";
