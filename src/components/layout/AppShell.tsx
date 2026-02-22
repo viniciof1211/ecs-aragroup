@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { usePreferencesStore } from "@/stores/usePreferencesStore";
 import { useBitrixPolling } from "@/hooks/useBitrixPolling";
 import { useMetaPolling } from "@/hooks/useMetaPolling";
+import { GlobalAdvisorChat } from "./GlobalAdvisorChat";
 
 export function AppShell() {
   const sidebarOpen = usePreferencesStore((s) => s.sidebarOpen);
@@ -31,6 +32,7 @@ export function AppShell() {
         </div>
         <Footer />
       </main>
+      <GlobalAdvisorChat />
     </div>
   );
 }

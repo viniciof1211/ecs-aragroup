@@ -369,6 +369,94 @@ export function generateAdRecommendations(
   return recs;
 }
 
+// ─── Enrich entities with insights ───
+
+export async function enrichCampaignsWithInsights(campaigns: MetaCampaign[]): Promise<MetaCampaign[]> {
+  if (!META_ACCESS_TOKEN) return campaigns;
+  const enriched = await Promise.all(
+    campaigns.map(async (c) => {
+      if (c.insights) return c;
+      const insights = await fetchCampaignInsights(c.id);
+      return insights ? { ...c, insights } : c;
+    })
+  );
+  return enriched;
+}
+
+export async function enrichAdsWithInsights(ads: MetaAd[]): Promise<MetaAd[]> {
+  if (!META_ACCESS_TOKEN) return ads;
+  const enriched = await Promise.all(
+    ads.map(async (ad) => {
+      if (ad.insights) return ad;
+      try {
+        const data = await metaFetch<{ data: Record<string, unknown>[] }>(
+          `/${ad.id}/insights`,
+          {
+            fields: "impressions,reach,clicks,spend,cpc,cpm,ctr,frequency,actions,cost_per_action_type",
+            date_preset: "last_30d",
+          }
+        );
+        const insights = data.data?.[0] ? normalizeInsights(data.data[0]) : null;
+        return insights ? { ...ad, insights } : ad;
+      } catch {
+        return ad;
+      }
+    })
+  );
+  return enriched;
+}
+
+export async function enrichAdSetsWithInsights(adSets: MetaAdSet[]): Promise<MetaAdSet[]> {
+  if (!META_ACCESS_TOKEN) return enrichDemoAdSetsWithInsights(adSets);
+  const enriched = await Promise.all(
+    adSets.map(async (as) => {
+      if (as.insights) return as;
+      try {
+        const data = await metaFetch<{ data: Record<string, unknown>[] }>(
+          `/${as.id}/insights`,
+          {
+            fields: "impressions,reach,clicks,spend,cpc,cpm,ctr,frequency,actions,cost_per_action_type",
+            date_preset: "last_30d",
+          }
+        );
+        const insights = data.data?.[0] ? normalizeInsights(data.data[0]) : null;
+        return insights ? { ...as, insights } : as;
+      } catch {
+        return as;
+      }
+    })
+  );
+  return enriched;
+}
+
+function enrichDemoAdSetsWithInsights(adSets: MetaAdSet[]): MetaAdSet[] {
+  return adSets.map((as) => {
+    if (as.insights) return as;
+    const spend = Math.round(200 + Math.random() * 500);
+    const impressions = Math.round(15000 + Math.random() * 40000);
+    const clicks = Math.round(impressions * (0.02 + Math.random() * 0.03));
+    const leads = Math.round(clicks * (0.03 + Math.random() * 0.04));
+    const conversions = Math.round(leads * (0.08 + Math.random() * 0.12));
+    return {
+      ...as,
+      insights: {
+        impressions, reach: Math.round(impressions * 0.65), clicks, spend,
+        cpc: clicks > 0 ? spend / clicks : 0,
+        cpm: impressions > 0 ? (spend / impressions) * 1000 : 0,
+        ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
+        frequency: 1.5, leads, conversions,
+        cost_per_lead: leads > 0 ? spend / leads : 0,
+        cost_per_conversion: conversions > 0 ? spend / conversions : 0,
+        conversion_rate: clicks > 0 ? (conversions / clicks) * 100 : 0,
+        post_engagement: Math.round(clicks * 1.3),
+        page_engagement: Math.round(clicks * 0.5),
+        link_clicks: Math.round(clicks * 0.9),
+        date_start: "2026-01-15", date_stop: new Date().toISOString().slice(0, 10),
+      },
+    };
+  });
+}
+
 // ─── Polling ───
 
 export function getMetaPollInterval(): number {

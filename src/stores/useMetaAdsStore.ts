@@ -22,6 +22,9 @@ import {
   computeMetaAggregates,
   computePostEffectiveness,
   generateAdRecommendations,
+  enrichCampaignsWithInsights,
+  enrichAdsWithInsights,
+  enrichAdSetsWithInsights,
 } from "@/lib/meta-api";
 
 interface MetaAdsState {
@@ -66,12 +69,19 @@ export const useMetaAdsStore = create<MetaAdsState>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      const [campaigns, adSets, ads, posts, timeSeries] = await Promise.all([
+      const [rawCampaigns, rawAdSets, rawAds, posts, timeSeries] = await Promise.all([
         fetchCampaigns(),
         fetchAdSets(),
         fetchAds(),
         fetchPagePosts(),
         fetchAccountInsightsTimeSeries(30),
+      ]);
+
+      // Enrich with per-entity insights (parallel)
+      const [campaigns, adSets, ads] = await Promise.all([
+        enrichCampaignsWithInsights(rawCampaigns),
+        enrichAdSetsWithInsights(rawAdSets),
+        enrichAdsWithInsights(rawAds),
       ]);
 
       const aggregates = computeMetaAggregates(campaigns, ads, posts, timeSeries);

@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { useMetaAdsStore } from "@/stores/useMetaAdsStore";
 import {
-  POST_TYPE_LABELS, CAMPAIGN_STATUS_LABELS,
+  POST_TYPE_LABELS, CAMPAIGN_STATUS_LABELS, CAMPAIGN_OBJECTIVE_LABELS,
 } from "@/types/meta-ads";
 import type { MetaAdRecommendation } from "@/types/meta-ads";
 
@@ -57,7 +57,7 @@ function fmtNum(n: number): string {
 
 export function MetaAdsPanel({ mode }: MetaAdsPanelProps) {
   const {
-    campaigns, ads, posts, timeSeries, aggregates,
+    campaigns, adSets, ads, posts, timeSeries, aggregates,
     recommendations, postEffectiveness, lastFetchAt,
   } = useMetaAdsStore();
 
@@ -140,6 +140,74 @@ export function MetaAdsPanel({ mode }: MetaAdsPanelProps) {
       shares: p.shares,
     })),
     [posts]
+  );
+
+  const adSetPerformance = useMemo(() =>
+    adSets
+      .filter((as) => as.insights)
+      .map((as) => ({
+        name: as.name.length > 25 ? as.name.slice(0, 25) + "…" : as.name,
+        fullName: as.name,
+        campaignName: campaigns.find((c) => c.id === as.campaign_id)?.name ?? "—",
+        spend: as.insights!.spend,
+        leads: as.insights!.leads,
+        cpl: as.insights!.cost_per_lead,
+        ctr: as.insights!.ctr,
+        impressions: as.insights!.impressions,
+        clicks: as.insights!.clicks,
+        conversions: as.insights!.conversions,
+        convRate: as.insights!.conversion_rate,
+        status: as.status,
+      }))
+      .sort((a, b) => b.leads - a.leads),
+    [adSets, campaigns]
+  );
+
+  const conversionFunnel = useMemo(() => {
+    if (!aggregates) return [];
+    return [
+      { stage: "Impresiones", value: aggregates.total_impressions, color: "#1A4A28" },
+      { stage: "Alcance", value: aggregates.total_reach, color: "#2A6A3A" },
+      { stage: "Clicks", value: aggregates.total_clicks, color: "#3B82F6" },
+      { stage: "Leads", value: aggregates.total_leads, color: "#F59E0B" },
+      { stage: "Conversiones", value: aggregates.total_conversions, color: "#EF4444" },
+    ];
+  }, [aggregates]);
+
+  // Daily conversions + ROAS for predictive charts
+  const dailyConversions = useMemo(() => timeSeries.map((p) => ({
+    date: p.date.slice(5),
+    conversions: p.conversions,
+    leads: p.leads,
+    convRate: p.leads > 0 ? Math.round((p.conversions / p.leads) * 10000) / 100 : 0,
+    roas: p.spend > 0 ? Math.round((p.conversions * 2500000 / p.spend) * 100) / 100 : 0,
+    spend: p.spend,
+  })), [timeSeries]);
+
+  // Budget efficiency per campaign
+  const budgetEfficiency = useMemo(() =>
+    campaigns
+      .filter((c) => c.insights && c.insights.spend > 0)
+      .map((c) => {
+        const ins = c.insights!;
+        const efficiency = ins.leads > 0
+          ? Math.round(((ins.conversions / ins.leads) * 100 + (100 - ins.cost_per_lead * 2) + ins.ctr * 10) / 3)
+          : 0;
+        return {
+          name: c.name.length > 22 ? c.name.slice(0, 22) + "…" : c.name,
+          fullName: c.name,
+          spend: ins.spend,
+          leads: ins.leads,
+          conversions: ins.conversions,
+          cpl: ins.cost_per_lead,
+          roas: ins.spend > 0 ? Math.round((ins.conversions * 2500000 / ins.spend) * 100) / 100 : 0,
+          efficiency: Math.max(0, Math.min(100, efficiency)),
+          recommendation: efficiency >= 70 ? "Escalar +50%" : efficiency >= 40 ? "Mantener" : "Optimizar o pausar",
+          recColor: efficiency >= 70 ? "text-green-600" : efficiency >= 40 ? "text-yellow-600" : "text-red-600",
+        };
+      })
+      .sort((a, b) => b.efficiency - a.efficiency),
+    [campaigns]
   );
 
   // Predictive: trend extrapolation
@@ -348,6 +416,141 @@ export function MetaAdsPanel({ mode }: MetaAdsPanelProps) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Conversion Funnel */}
+      {conversionFunnel.length > 0 && (
+        <Card className="shadow-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="font-display text-lg flex items-center gap-2">
+              <Target className="h-5 w-5 text-red-500" />
+              Embudo de Conversión Meta Ads
+              <InfoTooltip text="Embudo completo desde impresiones hasta conversiones. Cada etapa muestra el volumen y la tasa de caída respecto a la etapa anterior. Permite identificar en qué punto del funnel se pierden más usuarios y optimizar esa etapa." />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {conversionFunnel.map((stage, i) => {
+                const maxVal = conversionFunnel[0].value;
+                const pct = maxVal > 0 ? (stage.value / maxVal) * 100 : 0;
+                const dropRate = i > 0 && conversionFunnel[i - 1].value > 0
+                  ? ((1 - stage.value / conversionFunnel[i - 1].value) * 100).toFixed(1)
+                  : null;
+                return (
+                  <div key={stage.stage} className="flex items-center gap-3">
+                    <span className="w-24 text-xs font-medium text-right">{stage.stage}</span>
+                    <div className="flex-1 h-8 bg-muted rounded-md overflow-hidden relative">
+                      <div
+                        className="h-full rounded-md transition-all duration-500"
+                        style={{ width: `${Math.max(pct, 2)}%`, backgroundColor: stage.color }}
+                      />
+                      <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-foreground">
+                        {fmtNum(stage.value)}
+                      </span>
+                    </div>
+                    {dropRate && (
+                      <span className="w-16 text-[10px] text-red-500 font-medium">-{dropRate}%</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Campaign Detail Table */}
+      <Card className="shadow-card">
+        <CardHeader className="pb-2">
+          <CardTitle className="font-display text-lg flex items-center gap-2">
+            <Megaphone className="h-5 w-5 text-blue-500" />
+            Detalle de Campañas
+            <InfoTooltip text="Tabla completa de todas las campañas con métricas detalladas: inversión, impresiones, clicks, CTR, leads, CPL, conversiones y tasa de conversión. Los datos se obtienen directamente de la API de Meta Graph v21.0 y se actualizan cada 4 minutos." />
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ScrollArea className="h-[320px]">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Campaña</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead>Objetivo</TableHead>
+                  <TableHead className="text-right">Inversión</TableHead>
+                  <TableHead className="text-right">Impresiones</TableHead>
+                  <TableHead className="text-right">Clicks</TableHead>
+                  <TableHead className="text-right">CTR</TableHead>
+                  <TableHead className="text-right">Leads</TableHead>
+                  <TableHead className="text-right">CPL</TableHead>
+                  <TableHead className="text-right">Conv.</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {campaignPerformance.map((c) => (
+                  <TableRow key={c.fullName}>
+                    <TableCell className="font-medium text-xs max-w-[180px] truncate">{c.fullName}</TableCell>
+                    <TableCell><Badge variant="outline" className="text-[9px]">{CAMPAIGN_STATUS_LABELS[c.status] || c.status}</Badge></TableCell>
+                    <TableCell className="text-[10px]">{CAMPAIGN_OBJECTIVE_LABELS[c.objective] || c.objective}</TableCell>
+                    <TableCell className="text-right text-xs">${fmtNum(c.spend)}</TableCell>
+                    <TableCell className="text-right text-xs">{fmtNum(c.leads > 0 ? c.spend / c.cpl * (c.ctr / 100) * 100 : 0)}</TableCell>
+                    <TableCell className="text-right text-xs">{fmtNum(c.leads > 0 ? Math.round(c.spend / c.cpl * (c.ctr / 100)) : 0)}</TableCell>
+                    <TableCell className="text-right text-xs">{c.ctr.toFixed(2)}%</TableCell>
+                    <TableCell className="text-right text-xs font-semibold">{c.leads}</TableCell>
+                    <TableCell className="text-right text-xs">${c.cpl.toFixed(2)}</TableCell>
+                    <TableCell className="text-right text-xs">{c.conversions}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </ScrollArea>
+        </CardContent>
+      </Card>
+
+      {/* Ad Set Breakdown */}
+      {adSetPerformance.length > 0 && (
+        <Card className="shadow-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="font-display text-lg flex items-center gap-2">
+              <Users className="h-5 w-5 text-cyan-500" />
+              Desglose por Conjunto de Anuncios
+              <InfoTooltip text="Rendimiento detallado por Ad Set (conjunto de anuncios). Cada ad set agrupa anuncios con la misma audiencia y presupuesto. Permite identificar qué segmentaciones de audiencia generan mejores resultados y optimizar la distribución de presupuesto." />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-[300px]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Ad Set</TableHead>
+                    <TableHead>Campaña</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead className="text-right">Inversión</TableHead>
+                    <TableHead className="text-right">CTR</TableHead>
+                    <TableHead className="text-right">Leads</TableHead>
+                    <TableHead className="text-right">CPL</TableHead>
+                    <TableHead className="text-right">Conv.</TableHead>
+                    <TableHead className="text-right">% Conv.</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {adSetPerformance.map((as) => (
+                    <TableRow key={as.fullName}>
+                      <TableCell className="font-medium text-xs max-w-[160px] truncate">{as.fullName}</TableCell>
+                      <TableCell className="text-[10px] max-w-[120px] truncate">{as.campaignName}</TableCell>
+                      <TableCell><Badge variant="outline" className="text-[9px]">{CAMPAIGN_STATUS_LABELS[as.status] || as.status}</Badge></TableCell>
+                      <TableCell className="text-right text-xs">${fmtNum(as.spend)}</TableCell>
+                      <TableCell className="text-right text-xs">{as.ctr.toFixed(2)}%</TableCell>
+                      <TableCell className="text-right text-xs font-semibold">{as.leads}</TableCell>
+                      <TableCell className="text-right text-xs">${as.cpl.toFixed(2)}</TableCell>
+                      <TableCell className="text-right text-xs">{as.conversions}</TableCell>
+                      <TableCell className="text-right text-xs">{as.convRate.toFixed(2)}%</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 
@@ -555,6 +758,102 @@ export function MetaAdsPanel({ mode }: MetaAdsPanelProps) {
           </ResponsiveContainer>
         </CardContent>
       </Card>
+
+      {/* Conversions + ROAS Daily */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <Card className="shadow-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="font-display text-lg flex items-center gap-2">
+              <Target className="h-5 w-5 text-green-600" />
+              Conversiones y Tasa de Conversión Diaria
+              <InfoTooltip text="Conversiones diarias (barras) vs tasa de conversión lead→venta (línea). La tasa se calcula como conversiones/leads × 100. Permite identificar días de alta eficiencia de cierre y correlacionar con acciones comerciales específicas." />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={dailyConversions}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                <XAxis dataKey="date" tick={{ fontSize: 7 }} className="fill-muted-foreground" />
+                <YAxis yAxisId="left" tick={{ fontSize: 8 }} className="fill-muted-foreground" />
+                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 8 }} className="fill-muted-foreground" />
+                <Tooltip contentStyle={tooltipStyle} />
+                <Legend wrapperStyle={{ fontSize: 9 }} />
+                <Bar yAxisId="left" dataKey="conversions" name="Conversiones" fill="#1A4A28" radius={[3, 3, 0, 0]} />
+                <Line yAxisId="right" type="monotone" dataKey="convRate" name="% Conversión" stroke="#F59E0B" strokeWidth={2} dot={false} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="font-display text-lg flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-purple-500" />
+              ROAS Diario (Retorno sobre Inversión Publicitaria)
+              <InfoTooltip text="ROAS = (Conversiones × Ticket Promedio ₡2.5M) / Inversión. Un ROAS > 1 indica que la inversión publicitaria genera más ingresos de lo que cuesta. Tendencia ascendente = campañas cada vez más rentables." />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={240}>
+              <AreaChart data={dailyConversions}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                <XAxis dataKey="date" tick={{ fontSize: 7 }} className="fill-muted-foreground" />
+                <YAxis tick={{ fontSize: 8 }} className="fill-muted-foreground" />
+                <Tooltip contentStyle={tooltipStyle} formatter={(v) => [`${v ?? 0}x`, "ROAS"]} />
+                <Area type="monotone" dataKey="roas" name="ROAS" stroke="#8B5CF6" fill="#8B5CF6" fillOpacity={0.2} strokeWidth={2} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Budget Optimization Table */}
+      {budgetEfficiency.length > 0 && (
+        <Card className="shadow-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="font-display text-lg flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-amber-500" />
+              Optimización de Presupuesto por Campaña
+              <InfoTooltip text="Score de eficiencia calculado combinando: tasa de conversión lead→venta, eficiencia de CPL (inverso normalizado), y CTR. Campañas con score ≥70 se recomiendan escalar, 40-69 mantener, <40 optimizar o pausar. Permite tomar decisiones de presupuesto basadas en datos." />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Campaña</TableHead>
+                  <TableHead className="text-right">Inversión</TableHead>
+                  <TableHead className="text-right">Leads</TableHead>
+                  <TableHead className="text-right">Conv.</TableHead>
+                  <TableHead className="text-right">ROAS</TableHead>
+                  <TableHead className="text-right">Eficiencia</TableHead>
+                  <TableHead>Recomendación</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {budgetEfficiency.map((c) => (
+                  <TableRow key={c.fullName}>
+                    <TableCell className="font-medium text-xs max-w-[160px] truncate">{c.fullName}</TableCell>
+                    <TableCell className="text-right text-xs">${fmtNum(c.spend)}</TableCell>
+                    <TableCell className="text-right text-xs">{c.leads}</TableCell>
+                    <TableCell className="text-right text-xs">{c.conversions}</TableCell>
+                    <TableCell className="text-right text-xs">{c.roas}x</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <div className="h-2 w-16 rounded-full bg-muted overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${c.efficiency}%`, backgroundColor: c.efficiency >= 70 ? "#16a34a" : c.efficiency >= 40 ? "#ca8a04" : "#dc2626" }} />
+                        </div>
+                        <span className="text-[10px] font-medium">{c.efficiency}%</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className={`text-xs font-medium ${c.recColor}`}>{c.recommendation}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 
