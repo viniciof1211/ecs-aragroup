@@ -52,6 +52,38 @@ async function metaFetch<T>(path: string, params: Record<string, string> = {}): 
 // ─── Auto-discover ad accounts from Business Manager ───
 
 let _discoveredAccountIds: string[] | null = null;
+let _pageAccessTokens: Map<string, string> | null = null;
+
+/** Exchange system user token for page-specific access tokens via /me/accounts */
+async function getPageAccessTokens(): Promise<Map<string, string>> {
+  if (_pageAccessTokens) return _pageAccessTokens;
+  if (!META_ACCESS_TOKEN) return new Map();
+  try {
+    const data = await metaFetch<{ data: { id: string; name: string; access_token: string }[] }>(
+      "/me/accounts",
+      { fields: "id,name,access_token", limit: "50" }
+    );
+    _pageAccessTokens = new Map(data.data.map((p) => [p.id, p.access_token]));
+    console.log("[Meta API] Got page access tokens for:", data.data.map((p) => `${p.id} (${p.name})`));
+    return _pageAccessTokens;
+  } catch (err) {
+    console.warn("[Meta API] Failed to get page access tokens:", err);
+    return new Map();
+  }
+}
+
+/** Fetch from Graph API using a specific access token (e.g. page token) */
+async function metaFetchWithToken<T>(token: string, path: string, params: Record<string, string> = {}): Promise<T> {
+  const url = new URL(`${META_GRAPH_URL}${path}`);
+  url.searchParams.set("access_token", token);
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+  const res = await fetch(url.toString());
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(`Meta API ${res.status}: ${JSON.stringify(err)}`);
+  }
+  return res.json();
+}
 
 async function getAdAccountIds(): Promise<string[]> {
   // If explicit IDs are configured, use them
@@ -223,20 +255,29 @@ export async function fetchPagePosts(): Promise<MetaPost[]> {
   const pageIds = await getPageIds();
   if (pageIds.length === 0) return getDemoPosts();
 
+  // New Pages Experience requires page-specific access tokens
+  const pageTokens = await getPageAccessTokens();
+
   try {
     const results = await Promise.all(
-      pageIds.map((pageId) =>
-        metaFetch<{ data: Record<string, unknown>[] }>(
+      pageIds.map((pageId) => {
+        const pageToken = pageTokens.get(pageId);
+        if (!pageToken) {
+          console.warn(`[Meta API] No page token for ${pageId}, skipping posts`);
+          return Promise.resolve(null);
+        }
+        return metaFetchWithToken<{ data: Record<string, unknown>[] }>(
+          pageToken,
           `/${pageId}/posts`,
           {
-            fields: "id,message,story,created_time,updated_time,type,permalink_url,full_picture,likes.summary(true),comments.summary(true),shares,insights.metric(post_impressions,post_engaged_users,post_clicks,post_reactions_by_type_total){values}",
+            fields: "id,message,story,created_time,updated_time,permalink_url,full_picture,attachments{type,media_type,subattachments},likes.summary(true),comments.summary(true),shares",
             limit: "50",
           }
         ).catch((err) => {
           console.warn(`[Meta API] Posts fetch error for page ${pageId}:`, err);
           return null;
-        })
-      )
+        });
+      })
     );
     const realPosts = results.filter(Boolean).flatMap((r) => r!.data.map(normalizePost));
     // If all page fetches failed, fall back to demo data
@@ -674,6 +715,27 @@ function normalizeAd(raw: Record<string, unknown>): MetaAd {
   };
 }
 
+function detectPostType(raw: Record<string, unknown>): MetaPost["type"] {
+  // Try deprecated 'type' field first (works for older API versions / demo data)
+  if (raw.type) return raw.type as MetaPost["type"];
+  // Detect from attachments (New Pages Experience)
+  const attachments = raw.attachments as Record<string, unknown> | undefined;
+  const attData = (attachments?.data as Record<string, unknown>[]) ?? [];
+  if (attData.length > 0) {
+    const mediaType = String(attData[0].media_type ?? attData[0].type ?? "").toLowerCase();
+    if (mediaType.includes("video")) return "video";
+    if (mediaType.includes("photo") || mediaType.includes("image")) return "photo";
+    if (mediaType.includes("link")) return "link";
+    if (mediaType.includes("album") || (attData[0].subattachments)) return "photo";
+    if (mediaType.includes("share")) return "link";
+  }
+  // Infer from other fields
+  if (raw.full_picture) return "photo";
+  const permalink = String(raw.permalink_url ?? "");
+  if (permalink.includes("/videos/")) return "video";
+  return "status";
+}
+
 function normalizePost(raw: Record<string, unknown>): MetaPost {
   const likes = (raw.likes as Record<string, unknown>)?.summary as Record<string, unknown> | undefined;
   const comments = (raw.comments as Record<string, unknown>)?.summary as Record<string, unknown> | undefined;
@@ -681,8 +743,10 @@ function normalizePost(raw: Record<string, unknown>): MetaPost {
   const likeCount = Number(likes?.total_count ?? 0);
   const commentCount = Number(comments?.total_count ?? 0);
   const shareCount = Number(shares?.count ?? 0);
-  const reach = 1;
-  const impressions = 1;
+  const totalEngagement = likeCount + commentCount + shareCount;
+  // Estimate reach from engagement (real reach requires post-level insights which need additional permissions)
+  const estimatedReach = Math.max(totalEngagement * 10, 1);
+  const estimatedImpressions = estimatedReach * 2;
 
   return {
     id: String(raw.id ?? ""),
@@ -690,17 +754,17 @@ function normalizePost(raw: Record<string, unknown>): MetaPost {
     story: raw.story ? String(raw.story) : undefined,
     created_time: String(raw.created_time ?? ""),
     updated_time: raw.updated_time ? String(raw.updated_time) : undefined,
-    type: (raw.type as MetaPost["type"]) ?? "unknown",
+    type: detectPostType(raw),
     permalink_url: raw.permalink_url ? String(raw.permalink_url) : undefined,
     full_picture: raw.full_picture ? String(raw.full_picture) : undefined,
     likes: likeCount,
     comments: commentCount,
     shares: shareCount,
     reactions_total: likeCount,
-    reach,
-    impressions,
+    reach: estimatedReach,
+    impressions: estimatedImpressions,
     clicks: 0,
-    engagement_rate: reach > 0 ? ((likeCount + commentCount + shareCount) / Math.max(reach, 1)) * 100 : 0,
+    engagement_rate: totalEngagement > 0 ? (totalEngagement / estimatedReach) * 100 : 0,
     is_promoted: false,
   };
 }
