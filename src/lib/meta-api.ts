@@ -19,9 +19,16 @@ import type {
 
 const META_GRAPH_URL = "https://graph.facebook.com/v21.0";
 const META_ACCESS_TOKEN = import.meta.env.VITE_META_ACCESS_TOKEN ?? "";
-const META_AD_ACCOUNT_ID = import.meta.env.VITE_META_AD_ACCOUNT_ID ?? "";
-const META_PAGE_ID = import.meta.env.VITE_META_PAGE_ID ?? "";
 const META_POLL_INTERVAL = (Number(import.meta.env.VITE_META_POLL_INTERVAL_SECONDS) || 240) * 1000;
+
+// Multi-account support: comma-separated IDs
+const META_AD_ACCOUNT_IDS: string[] = (import.meta.env.VITE_META_AD_ACCOUNT_IDS ?? import.meta.env.VITE_META_AD_ACCOUNT_ID ?? "")
+  .split(",").map((s: string) => s.trim()).filter(Boolean);
+const META_PAGE_IDS: string[] = (import.meta.env.VITE_META_PAGE_IDS ?? import.meta.env.VITE_META_PAGE_ID ?? "")
+  .split(",").map((s: string) => s.trim()).filter(Boolean);
+
+// Business Manager for auto-discovery
+const META_BUSINESS_ID = import.meta.env.VITE_META_BUSINESS_ID ?? "";
 
 function metaUrl(path: string, params: Record<string, string> = {}): string {
   const url = new URL(`${META_GRAPH_URL}${path}`);
@@ -42,20 +49,93 @@ async function metaFetch<T>(path: string, params: Record<string, string> = {}): 
   return res.json();
 }
 
+// ─── Auto-discover ad accounts from Business Manager ───
+
+let _discoveredAccountIds: string[] | null = null;
+
+async function getAdAccountIds(): Promise<string[]> {
+  // If explicit IDs are configured, use them
+  if (META_AD_ACCOUNT_IDS.length > 0) return META_AD_ACCOUNT_IDS;
+
+  // Try auto-discovery from Business Manager
+  if (_discoveredAccountIds) return _discoveredAccountIds;
+
+  if (META_BUSINESS_ID && META_ACCESS_TOKEN) {
+    try {
+      const data = await metaFetch<{ data: { account_id: string; name: string }[] }>(
+        `/${META_BUSINESS_ID}/owned_ad_accounts`,
+        { fields: "account_id,name", limit: "50" }
+      );
+      _discoveredAccountIds = data.data.map((a) => a.account_id);
+      console.log("[Meta API] Discovered ad accounts:", _discoveredAccountIds.map((id, i) => `${id} (${data.data[i].name})`));
+      return _discoveredAccountIds;
+    } catch (err) {
+      console.warn("[Meta API] Auto-discovery failed, trying /me/adaccounts:", err);
+    }
+  }
+
+  // Fallback: discover from token owner
+  if (META_ACCESS_TOKEN) {
+    try {
+      const data = await metaFetch<{ data: { account_id: string; name: string }[] }>(
+        "/me/adaccounts",
+        { fields: "account_id,name", limit: "50" }
+      );
+      _discoveredAccountIds = data.data.map((a) => a.account_id);
+      console.log("[Meta API] Discovered ad accounts via /me:", _discoveredAccountIds.map((id, i) => `${id} (${data.data[i].name})`));
+      return _discoveredAccountIds;
+    } catch (err) {
+      console.warn("[Meta API] /me/adaccounts failed:", err);
+    }
+  }
+
+  _discoveredAccountIds = [];
+  return [];
+}
+
+async function getPageIds(): Promise<string[]> {
+  if (META_PAGE_IDS.length > 0) return META_PAGE_IDS;
+
+  // Auto-discover from /me/accounts
+  if (META_ACCESS_TOKEN) {
+    try {
+      const data = await metaFetch<{ data: { id: string; name: string }[] }>(
+        "/me/accounts",
+        { fields: "id,name", limit: "50" }
+      );
+      const ids = data.data.map((p) => p.id);
+      console.log("[Meta API] Discovered pages:", data.data.map((p) => `${p.id} (${p.name})`));
+      return ids;
+    } catch (err) {
+      console.warn("[Meta API] Page discovery failed:", err);
+    }
+  }
+  return [];
+}
+
 // ─── Campaigns ───
 
 export async function fetchCampaigns(): Promise<MetaCampaign[]> {
-  if (!META_ACCESS_TOKEN || !META_AD_ACCOUNT_ID) return getDemoCampaigns();
+  if (!META_ACCESS_TOKEN) return getDemoCampaigns();
+  const accountIds = await getAdAccountIds();
+  if (accountIds.length === 0) return getDemoCampaigns();
 
   try {
-    const data = await metaFetch<{ data: Record<string, unknown>[] }>(
-      `/act_${META_AD_ACCOUNT_ID}/campaigns`,
-      {
-        fields: "id,name,status,objective,daily_budget,lifetime_budget,start_time,stop_time,created_time,updated_time",
-        limit: "100",
-      }
+    const results = await Promise.all(
+      accountIds.map((accId) =>
+        metaFetch<{ data: Record<string, unknown>[] }>(
+          `/act_${accId}/campaigns`,
+          {
+            fields: "id,name,status,objective,daily_budget,lifetime_budget,start_time,stop_time,created_time,updated_time",
+            limit: "100",
+          }
+        ).catch((err) => {
+          console.warn(`[Meta API] Campaign fetch error for act_${accId}:`, err);
+          return { data: [] as Record<string, unknown>[] };
+        })
+      )
     );
-    return data.data.map(normalizeCampaign);
+    return results.flatMap((r) => r.data.map(normalizeCampaign));
   } catch (err) {
     console.error("[Meta API] Campaign fetch error:", err);
     return getDemoCampaigns();
@@ -81,16 +161,26 @@ export async function fetchCampaignInsights(campaignId: string, datePreset = "la
 // ─── Ad Sets ───
 
 export async function fetchAdSets(): Promise<MetaAdSet[]> {
-  if (!META_ACCESS_TOKEN || !META_AD_ACCOUNT_ID) return getDemoAdSets();
+  if (!META_ACCESS_TOKEN) return getDemoAdSets();
+  const accountIds = await getAdAccountIds();
+  if (accountIds.length === 0) return getDemoAdSets();
+
   try {
-    const data = await metaFetch<{ data: Record<string, unknown>[] }>(
-      `/act_${META_AD_ACCOUNT_ID}/adsets`,
-      {
-        fields: "id,campaign_id,name,status,daily_budget,lifetime_budget,start_time,end_time,targeting",
-        limit: "100",
-      }
+    const results = await Promise.all(
+      accountIds.map((accId) =>
+        metaFetch<{ data: Record<string, unknown>[] }>(
+          `/act_${accId}/adsets`,
+          {
+            fields: "id,campaign_id,name,status,daily_budget,lifetime_budget,start_time,end_time,targeting",
+            limit: "100",
+          }
+        ).catch((err) => {
+          console.warn(`[Meta API] AdSet fetch error for act_${accId}:`, err);
+          return { data: [] as Record<string, unknown>[] };
+        })
+      )
     );
-    return data.data.map(normalizeAdSet);
+    return results.flatMap((r) => r.data.map(normalizeAdSet));
   } catch (err) {
     console.error("[Meta API] AdSet fetch error:", err);
     return getDemoAdSets();
@@ -100,16 +190,26 @@ export async function fetchAdSets(): Promise<MetaAdSet[]> {
 // ─── Ads ───
 
 export async function fetchAds(): Promise<MetaAd[]> {
-  if (!META_ACCESS_TOKEN || !META_AD_ACCOUNT_ID) return getDemoAds();
+  if (!META_ACCESS_TOKEN) return getDemoAds();
+  const accountIds = await getAdAccountIds();
+  if (accountIds.length === 0) return getDemoAds();
+
   try {
-    const data = await metaFetch<{ data: Record<string, unknown>[] }>(
-      `/act_${META_AD_ACCOUNT_ID}/ads`,
-      {
-        fields: "id,adset_id,campaign_id,name,status,creative{id,thumbnail_url,title,body},created_time,updated_time",
-        limit: "100",
-      }
+    const results = await Promise.all(
+      accountIds.map((accId) =>
+        metaFetch<{ data: Record<string, unknown>[] }>(
+          `/act_${accId}/ads`,
+          {
+            fields: "id,adset_id,campaign_id,name,status,creative{id,thumbnail_url,title,body},created_time,updated_time",
+            limit: "100",
+          }
+        ).catch((err) => {
+          console.warn(`[Meta API] Ads fetch error for act_${accId}:`, err);
+          return { data: [] as Record<string, unknown>[] };
+        })
+      )
     );
-    return data.data.map(normalizeAd);
+    return results.flatMap((r) => r.data.map(normalizeAd));
   } catch (err) {
     console.error("[Meta API] Ads fetch error:", err);
     return getDemoAds();
@@ -119,16 +219,26 @@ export async function fetchAds(): Promise<MetaAd[]> {
 // ─── Page Posts ───
 
 export async function fetchPagePosts(): Promise<MetaPost[]> {
-  if (!META_ACCESS_TOKEN || !META_PAGE_ID) return getDemoPosts();
+  if (!META_ACCESS_TOKEN) return getDemoPosts();
+  const pageIds = await getPageIds();
+  if (pageIds.length === 0) return getDemoPosts();
+
   try {
-    const data = await metaFetch<{ data: Record<string, unknown>[] }>(
-      `/${META_PAGE_ID}/posts`,
-      {
-        fields: "id,message,story,created_time,updated_time,type,permalink_url,full_picture,likes.summary(true),comments.summary(true),shares,insights.metric(post_impressions,post_engaged_users,post_clicks,post_reactions_by_type_total){values}",
-        limit: "50",
-      }
+    const results = await Promise.all(
+      pageIds.map((pageId) =>
+        metaFetch<{ data: Record<string, unknown>[] }>(
+          `/${pageId}/posts`,
+          {
+            fields: "id,message,story,created_time,updated_time,type,permalink_url,full_picture,likes.summary(true),comments.summary(true),shares,insights.metric(post_impressions,post_engaged_users,post_clicks,post_reactions_by_type_total){values}",
+            limit: "50",
+          }
+        ).catch((err) => {
+          console.warn(`[Meta API] Posts fetch error for page ${pageId}:`, err);
+          return { data: [] as Record<string, unknown>[] };
+        })
+      )
     );
-    return data.data.map(normalizePost);
+    return results.flatMap((r) => r.data.map(normalizePost));
   } catch (err) {
     console.error("[Meta API] Posts fetch error:", err);
     return getDemoPosts();
@@ -138,17 +248,50 @@ export async function fetchPagePosts(): Promise<MetaPost[]> {
 // ─── Account-level insights time series ───
 
 export async function fetchAccountInsightsTimeSeries(days = 30): Promise<MetaInsightPoint[]> {
-  if (!META_ACCESS_TOKEN || !META_AD_ACCOUNT_ID) return getDemoTimeSeries();
+  if (!META_ACCESS_TOKEN) return getDemoTimeSeries();
+  const accountIds = await getAdAccountIds();
+  if (accountIds.length === 0) return getDemoTimeSeries();
+
   try {
-    const data = await metaFetch<{ data: Record<string, unknown>[] }>(
-      `/act_${META_AD_ACCOUNT_ID}/insights`,
-      {
-        fields: "impressions,reach,clicks,spend,actions,ctr,cost_per_action_type",
-        time_increment: "1",
-        date_preset: days <= 7 ? "last_7d" : days <= 14 ? "last_14d" : "last_30d",
-      }
+    const datePreset = days <= 7 ? "last_7d" : days <= 14 ? "last_14d" : "last_30d";
+    const results = await Promise.all(
+      accountIds.map((accId) =>
+        metaFetch<{ data: Record<string, unknown>[] }>(
+          `/act_${accId}/insights`,
+          {
+            fields: "impressions,reach,clicks,spend,actions,ctr,cost_per_action_type",
+            time_increment: "1",
+            date_preset: datePreset,
+          }
+        ).catch((err) => {
+          console.warn(`[Meta API] Insights fetch error for act_${accId}:`, err);
+          return { data: [] as Record<string, unknown>[] };
+        })
+      )
     );
-    return data.data.map(normalizeInsightPoint);
+
+    // Merge time series from all accounts by date
+    const byDate = new Map<string, MetaInsightPoint>();
+    for (const r of results) {
+      for (const raw of r.data) {
+        const point = normalizeInsightPoint(raw);
+        const existing = byDate.get(point.date);
+        if (existing) {
+          existing.impressions += point.impressions;
+          existing.reach += point.reach;
+          existing.clicks += point.clicks;
+          existing.spend += point.spend;
+          existing.leads += point.leads;
+          existing.conversions += point.conversions;
+          existing.engagement += point.engagement;
+          existing.ctr = existing.impressions > 0 ? (existing.clicks / existing.impressions) * 100 : 0;
+          existing.cpl = existing.leads > 0 ? existing.spend / existing.leads : 0;
+        } else {
+          byDate.set(point.date, { ...point });
+        }
+      }
+    }
+    return Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
   } catch {
     return getDemoTimeSeries();
   }
@@ -464,7 +607,7 @@ export function getMetaPollInterval(): number {
 }
 
 export function isMetaConfigured(): boolean {
-  return !!(META_ACCESS_TOKEN && META_AD_ACCOUNT_ID);
+  return !!(META_ACCESS_TOKEN && (META_AD_ACCOUNT_IDS.length > 0 || META_BUSINESS_ID));
 }
 
 // ─── Normalizers ───
