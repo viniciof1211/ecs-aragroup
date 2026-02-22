@@ -234,11 +234,13 @@ export async function fetchPagePosts(): Promise<MetaPost[]> {
           }
         ).catch((err) => {
           console.warn(`[Meta API] Posts fetch error for page ${pageId}:`, err);
-          return { data: [] as Record<string, unknown>[] };
+          return null;
         })
       )
     );
-    return results.flatMap((r) => r.data.map(normalizePost));
+    const realPosts = results.filter(Boolean).flatMap((r) => r!.data.map(normalizePost));
+    // If all page fetches failed, fall back to demo data
+    return realPosts.length > 0 ? realPosts : getDemoPosts();
   } catch (err) {
     console.error("[Meta API] Posts fetch error:", err);
     return getDemoPosts();
@@ -256,14 +258,29 @@ export async function fetchAccountInsightsTimeSeries(days = 30): Promise<MetaIns
     const datePreset = days <= 7 ? "last_7d" : days <= 14 ? "last_14d" : "last_30d";
     const results = await Promise.all(
       accountIds.map((accId) =>
-        metaFetch<{ data: Record<string, unknown>[] }>(
+        metaFetch<{ data: Record<string, unknown>[]; paging?: { next?: string } }>(
           `/act_${accId}/insights`,
           {
             fields: "impressions,reach,clicks,spend,actions,ctr,cost_per_action_type",
             time_increment: "1",
             date_preset: datePreset,
+            limit: "31",
           }
-        ).catch((err) => {
+        ).then(async (firstPage) => {
+          // Handle pagination if needed
+          const allData = [...firstPage.data];
+          let nextUrl = firstPage.paging?.next;
+          while (nextUrl) {
+            try {
+              const res = await fetch(nextUrl);
+              if (!res.ok) break;
+              const page = await res.json() as { data: Record<string, unknown>[]; paging?: { next?: string } };
+              allData.push(...page.data);
+              nextUrl = page.paging?.next;
+            } catch { break; }
+          }
+          return { data: allData };
+        }).catch((err) => {
           console.warn(`[Meta API] Insights fetch error for act_${accId}:`, err);
           return { data: [] as Record<string, unknown>[] };
         })
@@ -701,8 +718,12 @@ function normalizeInsights(raw: Record<string, unknown>): MetaInsights {
     return a ? Number(a.value ?? 0) : 0;
   };
 
-  const leads = findAction("lead") || findAction("offsite_conversion.fb_pixel_lead");
-  const conversions = findAction("offsite_conversion.fb_pixel_purchase") || findAction("purchase");
+  const leads = findAction("lead") || findAction("onsite_conversion.lead_grouped") || findAction("offsite_conversion.fb_pixel_lead");
+  // Conversions: messaging replies, landing page views, purchases, or lead-grouped events
+  const conversions = findAction("onsite_conversion.messaging_first_reply")
+    + findAction("landing_page_view")
+    + findAction("offsite_conversion.fb_pixel_purchase")
+    + findAction("purchase");
   const spend = Number(raw.spend ?? 0);
 
   return {
@@ -738,7 +759,11 @@ function normalizeInsightPoint(raw: Record<string, unknown>): MetaInsightPoint {
   const impressions = Number(raw.impressions ?? 0);
   const clicks = Number(raw.clicks ?? 0);
   const spend = Number(raw.spend ?? 0);
-  const leads = findAction("lead") || findAction("offsite_conversion.fb_pixel_lead");
+  const leads = findAction("lead") || findAction("onsite_conversion.lead_grouped") || findAction("offsite_conversion.fb_pixel_lead");
+  const conversions = findAction("onsite_conversion.messaging_first_reply")
+    + findAction("landing_page_view")
+    + findAction("offsite_conversion.fb_pixel_purchase")
+    + findAction("purchase");
 
   return {
     date: String(raw.date_start ?? ""),
@@ -747,7 +772,7 @@ function normalizeInsightPoint(raw: Record<string, unknown>): MetaInsightPoint {
     clicks,
     spend,
     leads,
-    conversions: findAction("offsite_conversion.fb_pixel_purchase") || findAction("purchase"),
+    conversions,
     cpl: leads > 0 ? spend / leads : 0,
     ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
     engagement: findAction("post_engagement"),
