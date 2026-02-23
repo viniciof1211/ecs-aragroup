@@ -140,31 +140,36 @@ export function SentimentPanel({ leads, interactions }: SentimentPanelProps) {
     }));
   }, [sentiment.results]);
 
-  // ─── Top Intent Signals ───
+  // ─── Normalize signal keys to merge duplicates (e.g. showroom_visit ≡ showroom visit) ───
+  const normalizeSignalKey = useCallback((key: string): string => {
+    return key.toLowerCase().replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  }, []);
+
+  // ─── All Intent Signals (normalized, descending) ───
   const topIntents = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const r of Object.values(sentiment.results)) {
       for (const s of r.intent_signals) {
-        counts[s] = (counts[s] || 0) + 1;
+        const key = normalizeSignalKey(s);
+        if (key) counts[key] = (counts[key] || 0) + 1;
       }
     }
     return Object.entries(counts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10);
-  }, [sentiment.results]);
+      .sort((a, b) => b[1] - a[1]);
+  }, [sentiment.results, normalizeSignalKey]);
 
-  // ─── Top Risk Flags ───
+  // ─── All Risk Flags (normalized, descending) ───
   const topRisks = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const r of Object.values(sentiment.results)) {
       for (const f of r.risk_flags) {
-        counts[f] = (counts[f] || 0) + 1;
+        const key = normalizeSignalKey(f);
+        if (key) counts[key] = (counts[key] || 0) + 1;
       }
     }
     return Object.entries(counts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10);
-  }, [sentiment.results]);
+      .sort((a, b) => b[1] - a[1]);
+  }, [sentiment.results, normalizeSignalKey]);
 
   // ─── Scatter data: ECS Score vs Sentiment ───
   const scatterData = useMemo(() => {
@@ -478,7 +483,7 @@ export function SentimentPanel({ leads, interactions }: SentimentPanelProps) {
               <Card className="shadow-card">
                 <CardHeader className="pb-2">
                   <CardTitle className="font-display text-lg flex items-center gap-2">
-                    Señales de Intención (Top 10)
+                    Señales de Intención ({topIntents.length})
                     <InfoTooltip text="Las 10 señales de intención más frecuentes detectadas por el agente de IA en las interacciones de los leads. Incluye señales como 'interés en cotización', 'solicitud de visita', 'comparación de precios', etc. Permite identificar patrones de comportamiento de compra." />
                   </CardTitle>
                 </CardHeader>
@@ -501,7 +506,7 @@ export function SentimentPanel({ leads, interactions }: SentimentPanelProps) {
               <Card className="shadow-card">
                 <CardHeader className="pb-2">
                   <CardTitle className="font-display text-lg flex items-center gap-2">
-                    Alertas de Riesgo (Top 10)
+                    Alertas de Riesgo ({topRisks.length})
                     <InfoTooltip text="Las 10 alertas de riesgo más frecuentes identificadas por IA: falta de seguimiento, tono negativo, demora en respuesta, competencia mencionada, etc. Cada alerta indica un factor que podría llevar a la pérdida del lead si no se interviene." />
                   </CardTitle>
                 </CardHeader>
