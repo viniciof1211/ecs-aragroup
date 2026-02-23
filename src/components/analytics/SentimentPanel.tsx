@@ -40,6 +40,7 @@ import { useSentiment, useSentimentHealth } from "@/hooks/useSentiment";
 import { cn } from "@/lib/utils";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { translateFreeText } from "@/lib/translate-es";
+import { normalizeSignal } from "@/lib/signal-normalizer";
 import { getFallbackStatus } from "@/lib/openrouter-fallback";
 import type { ECSLead, ECSInteraction, SentimentResult } from "@/types/ecs";
 import { MetaAdsPanel } from "./MetaAdsPanel";
@@ -140,36 +141,52 @@ export function SentimentPanel({ leads, interactions }: SentimentPanelProps) {
     }));
   }, [sentiment.results]);
 
-  // ─── Normalize signal keys to merge duplicates (e.g. showroom_visit ≡ showroom visit) ───
-  const normalizeSignalKey = useCallback((key: string): string => {
-    return key.toLowerCase().replace(/_/g, " ").replace(/\s+/g, " ").trim();
-  }, []);
-
-  // ─── All Intent Signals (normalized, descending) ───
+  // ─── All Intent Signals (AI-normalized, descending) ───
   const topIntents = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const r of Object.values(sentiment.results)) {
       for (const s of r.intent_signals) {
-        const key = normalizeSignalKey(s);
+        const key = normalizeSignal(s, "intent");
         if (key) counts[key] = (counts[key] || 0) + 1;
       }
     }
     return Object.entries(counts)
       .sort((a, b) => b[1] - a[1]);
-  }, [sentiment.results, normalizeSignalKey]);
+  }, [sentiment.results]);
 
-  // ─── All Risk Flags (normalized, descending) ───
+  // ─── All Risk Flags (AI-normalized, descending) ───
   const topRisks = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const r of Object.values(sentiment.results)) {
       for (const f of r.risk_flags) {
-        const key = normalizeSignalKey(f);
+        const key = normalizeSignal(f, "risk");
         if (key) counts[key] = (counts[key] || 0) + 1;
       }
     }
     return Object.entries(counts)
       .sort((a, b) => b[1] - a[1]);
-  }, [sentiment.results, normalizeSignalKey]);
+  }, [sentiment.results]);
+
+  // ─── Lazy-loading state for signal tables ───
+  const SIGNAL_PAGE_SIZE = 10;
+  const [intentVisible, setIntentVisible] = useState(SIGNAL_PAGE_SIZE);
+  const [riskVisible, setRiskVisible] = useState(SIGNAL_PAGE_SIZE);
+  const intentScrollRef = useRef<HTMLDivElement>(null);
+  const riskScrollRef = useRef<HTMLDivElement>(null);
+
+  const handleIntentScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 40) {
+      setIntentVisible((prev) => Math.min(prev + SIGNAL_PAGE_SIZE, topIntents.length));
+    }
+  }, [topIntents.length]);
+
+  const handleRiskScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 40) {
+      setRiskVisible((prev) => Math.min(prev + SIGNAL_PAGE_SIZE, topRisks.length));
+    }
+  }, [topRisks.length]);
 
   // ─── Scatter data: ECS Score vs Sentiment ───
   const scatterData = useMemo(() => {
@@ -484,20 +501,27 @@ export function SentimentPanel({ leads, interactions }: SentimentPanelProps) {
                 <CardHeader className="pb-2">
                   <CardTitle className="font-display text-lg flex items-center gap-2">
                     Señales de Intención ({topIntents.length})
-                    <InfoTooltip text="Las 10 señales de intención más frecuentes detectadas por el agente de IA en las interacciones de los leads. Incluye señales como 'interés en cotización', 'solicitud de visita', 'comparación de precios', etc. Permite identificar patrones de comportamiento de compra." />
+                    <InfoTooltip text="Señales de intención detectadas por IA, normalizadas semánticamente para agrupar variantes similares. Desplaza hacia abajo para ver más." />
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   {topIntents.length === 0 ? (
                     <p className="py-4 text-center text-sm text-muted-foreground">Sin datos</p>
                   ) : (
-                    <div className="space-y-1.5">
-                      {topIntents.map(([signal, count]) => (
+                    <div
+                      ref={intentScrollRef}
+                      onScroll={handleIntentScroll}
+                      className="max-h-[340px] overflow-y-auto space-y-1.5 pr-1"
+                    >
+                      {topIntents.slice(0, intentVisible).map(([signal, count]) => (
                         <div key={signal} className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-1.5 text-sm">
-                          <span>{signal}</span>
+                          <span className="capitalize">{signal}</span>
                           <Badge variant="secondary">{count.toLocaleString("es-CR")}</Badge>
                         </div>
                       ))}
+                      {intentVisible < topIntents.length && (
+                        <p className="py-2 text-center text-xs text-muted-foreground">↓ Desplaza para ver más ({topIntents.length - intentVisible} restantes)</p>
+                      )}
                     </div>
                   )}
                 </CardContent>
@@ -507,20 +531,27 @@ export function SentimentPanel({ leads, interactions }: SentimentPanelProps) {
                 <CardHeader className="pb-2">
                   <CardTitle className="font-display text-lg flex items-center gap-2">
                     Alertas de Riesgo ({topRisks.length})
-                    <InfoTooltip text="Las 10 alertas de riesgo más frecuentes identificadas por IA: falta de seguimiento, tono negativo, demora en respuesta, competencia mencionada, etc. Cada alerta indica un factor que podría llevar a la pérdida del lead si no se interviene." />
+                    <InfoTooltip text="Alertas de riesgo detectadas por IA, normalizadas semánticamente. Desplaza hacia abajo para ver más." />
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   {topRisks.length === 0 ? (
                     <p className="py-4 text-center text-sm text-muted-foreground">Sin datos</p>
                   ) : (
-                    <div className="space-y-1.5">
-                      {topRisks.map(([flag, count]) => (
+                    <div
+                      ref={riskScrollRef}
+                      onScroll={handleRiskScroll}
+                      className="max-h-[340px] overflow-y-auto space-y-1.5 pr-1"
+                    >
+                      {topRisks.slice(0, riskVisible).map(([flag, count]) => (
                         <div key={flag} className="flex items-center justify-between rounded-md bg-destructive/5 px-3 py-1.5 text-sm">
-                          <span>{flag}</span>
+                          <span className="capitalize">{flag}</span>
                           <Badge variant="destructive">{count.toLocaleString("es-CR")}</Badge>
                         </div>
                       ))}
+                      {riskVisible < topRisks.length && (
+                        <p className="py-2 text-center text-xs text-muted-foreground">↓ Desplaza para ver más ({topRisks.length - riskVisible} restantes)</p>
+                      )}
                     </div>
                   )}
                 </CardContent>
