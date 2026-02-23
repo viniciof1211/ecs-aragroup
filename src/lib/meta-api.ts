@@ -232,7 +232,7 @@ export async function fetchAds(): Promise<MetaAd[]> {
         metaFetch<{ data: Record<string, unknown>[] }>(
           `/act_${accId}/ads`,
           {
-            fields: "id,adset_id,campaign_id,name,status,creative{id,thumbnail_url,title,body},created_time,updated_time",
+            fields: "id,adset_id,campaign_id,name,status,creative{id,thumbnail_url,title,body,effective_object_story_id},created_time,updated_time",
             limit: "100",
           }
         ).catch((err) => {
@@ -700,6 +700,13 @@ function normalizeAdSet(raw: Record<string, unknown>): MetaAdSet {
 
 function normalizeAd(raw: Record<string, unknown>): MetaAd {
   const creative = raw.creative as Record<string, unknown> | undefined;
+  // Build preview URL from effective_object_story_id (format: "pageId_postId")
+  let previewUrl: string | undefined;
+  const storyId = creative?.effective_object_story_id as string | undefined;
+  if (storyId && storyId.includes("_")) {
+    const [pageId, postId] = storyId.split("_", 2);
+    previewUrl = `https://www.facebook.com/${pageId}/posts/${postId}`;
+  }
   return {
     id: String(raw.id ?? ""),
     ad_set_id: String(raw.adset_id ?? ""),
@@ -710,6 +717,7 @@ function normalizeAd(raw: Record<string, unknown>): MetaAd {
     creative_thumbnail_url: creative ? String(creative.thumbnail_url ?? "") : undefined,
     creative_title: creative ? String(creative.title ?? "") : undefined,
     creative_body: creative ? String(creative.body ?? "") : undefined,
+    preview_url: previewUrl,
     created_time: String(raw.created_time ?? ""),
     updated_time: String(raw.updated_time ?? ""),
   };

@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/table";
 import {
   TrendingUp, DollarSign, Eye, MousePointerClick,
-  Users, Megaphone, Target, Sparkles, BarChart3, Lightbulb, Flame,
+  Users, Megaphone, Target, Sparkles, BarChart3, Lightbulb, Flame, ExternalLink,
 } from "lucide-react";
 import { useMetaAdsStore } from "@/stores/useMetaAdsStore";
 import {
@@ -99,6 +99,8 @@ export function MetaAdsPanel({ mode }: MetaAdsPanelProps) {
       .map((a) => ({
         name: a.name.length > 20 ? a.name.slice(0, 20) + "…" : a.name,
         fullName: a.name,
+        adId: a.id,
+        previewUrl: a.preview_url,
         spend: a.insights!.spend,
         ctr: a.insights!.ctr,
         cpl: a.insights!.cost_per_lead,
@@ -640,8 +642,21 @@ export function MetaAdsPanel({ mode }: MetaAdsPanelProps) {
                 {adPerformance.map((ad) => {
                   const sentiment = ad.ctr >= 3 ? "positive" : ad.ctr >= 1.5 ? "neutral" : "negative";
                   return (
-                    <TableRow key={ad.fullName}>
-                      <TableCell className="font-medium text-sm">{ad.fullName}</TableCell>
+                    <TableRow
+                      key={ad.fullName}
+                      className="cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => {
+                        const url = ad.previewUrl || `https://www.facebook.com/ads/manager/?act=${ad.adId}&selected_ad_ids=${ad.adId}`;
+                        window.open(url, "_blank", "noopener,noreferrer");
+                      }}
+                      title="Abrir anuncio en Facebook"
+                    >
+                      <TableCell className="font-medium text-sm">
+                        <span className="flex items-center gap-1.5">
+                          {ad.fullName}
+                          <ExternalLink className="h-3 w-3 text-muted-foreground shrink-0" />
+                        </span>
+                      </TableCell>
                       <TableCell><Badge variant="outline" className="text-[9px]">{CAMPAIGN_STATUS_LABELS[ad.status] || ad.status}</Badge></TableCell>
                       <TableCell className="text-right">{ad.ctr.toFixed(2)}%</TableCell>
                       <TableCell className="text-right">${ad.cpl.toFixed(2)}</TableCell>
