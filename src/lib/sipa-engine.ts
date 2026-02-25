@@ -333,6 +333,7 @@ export async function analyzeSIPABatch(
   const totalLeads = leads.length;
   let done = 0;
   let failed = 0;
+  let lastError = "";
 
   // Filter leads that need analysis (new or changed interactions)
   const candidates = leads.filter((lead) => {
@@ -396,14 +397,25 @@ export async function analyzeSIPABatch(
         if (!newAnalyses[lead.id]) {
           done++;
           failed++;
+          lastError = `Lead ${lead.name}: sin respuesta del AI`;
         }
       }
     } catch (err) {
       if (signal?.aborted) break;
-      console.error("[SIPA] Batch failed:", err);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.error("[SIPA] Batch failed:", errMsg);
+      lastError = errMsg;
       done += batch.length;
       failed += batch.length;
     }
+
+    onProgress?.({
+      done,
+      total: leadsToAnalyze.length,
+      failed,
+      phase: "analyzing",
+      lastError,
+    });
 
     // Inter-batch delay
     if (i + SIPA_BATCH_SIZE < leadsToAnalyze.length) {
@@ -416,6 +428,7 @@ export async function analyzeSIPABatch(
     total: leadsToAnalyze.length,
     failed,
     phase: "idle",
+    lastError,
   });
 
   return { analyses: newAnalyses, alerts: newAlerts };

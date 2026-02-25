@@ -182,6 +182,11 @@ export default function SIPAPage() {
               {store.progress.failed > 0 && ` (${store.progress.failed} fallidos)`}
             </span>
           </div>
+          {store.progress.lastError && (
+            <div className="mt-1 text-xs text-destructive font-mono bg-destructive/10 rounded px-2 py-1 max-h-20 overflow-auto">
+              Error: {store.progress.lastError}
+            </div>
+          )}
           <div className="mt-2 h-2 rounded-full bg-muted overflow-hidden">
             <div
               className="h-full bg-primary transition-all duration-500"
@@ -189,6 +194,18 @@ export default function SIPAPage() {
                 width: `${store.progress.total > 0 ? (store.progress.done / store.progress.total) * 100 : 0}%`,
               }}
             />
+          </div>
+        </div>
+      )}
+
+      {/* Last error display (persists after analysis ends) */}
+      {!store.isRunning && store.progress?.lastError && store.progress.failed > 0 && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+          <div className="text-sm font-medium text-destructive">
+            Último análisis: {store.progress.failed} de {store.progress.total} fallidos
+          </div>
+          <div className="mt-1 text-xs text-destructive/80 font-mono bg-destructive/10 rounded px-2 py-1 max-h-32 overflow-auto whitespace-pre-wrap">
+            {store.progress.lastError}
           </div>
         </div>
       )}

@@ -115,6 +115,7 @@ export interface SIPAProgress {
   total: number;
   failed: number;
   phase: "analyzing" | "generating" | "notifying" | "idle";
+  lastError?: string;
 }
 
 // ─── AI Response Schema (what we expect from the LLM) ───
