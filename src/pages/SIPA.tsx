@@ -261,10 +261,7 @@ export default function SIPAPage() {
                         if (!alert.read) store.markAlertRead(alert.id);
                       }}
                       onDismiss={() => store.dismissAlert(alert.id)}
-                      onViewLead={() => {
-                        setSelectedLeadId(alert.lead_id);
-                        navigate(`/leads/${alert.lead_id}`);
-                      }}
+                      onViewLead={() => navigate(`/leads/${alert.lead_id}`)}
                     />
                   ))}
                 </div>
