@@ -9,7 +9,7 @@
  *   5. Notification settings (email, browser, WhatsApp config)
  */
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Bell, BellRing, Calendar as CalendarIcon, GanttChart, Search,
@@ -79,7 +79,6 @@ export default function SIPAPage() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<SIPATab>("alerts");
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [expandedAlerts, setExpandedAlerts] = useState<Set<string>>(new Set());
   const [calendarMonth, setCalendarMonth] = useState(() => {
     const now = new Date();
