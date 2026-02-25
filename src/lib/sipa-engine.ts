@@ -22,9 +22,10 @@ import type {
 
 // ─── Constants ───
 
-export const SIPA_BATCH_SIZE = 5;
+export const SIPA_BATCH_SIZE = 3;
 export const SIPA_TIMEOUT_MS = 90_000;
-export const SIPA_INTER_BATCH_DELAY_MS = 2_000;
+export const SIPA_INTER_BATCH_DELAY_MS = 3_000;
+export const SIPA_MAX_LEADS_PER_CYCLE = 50;
 const SIPA_CACHE_KEY = "sipa_analyses";
 const SIPA_ALERTS_KEY = "sipa_alerts";
 const SIPA_CONFIG_KEY = "sipa_notification_config";
@@ -112,7 +113,8 @@ export function buildSIPAPayload(
 ): LeadInteractionData {
   const leadIx = interactions
     .filter((ix) => ix.lead_id === lead.id)
-    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+    .slice(-30); // Cap to last 30 interactions to keep payload within context window
 
   return {
     lead_id: lead.id,
@@ -181,14 +183,18 @@ async function callSIPAAI(
 
   for (const model of SIPA_MODELS) {
     try {
+      const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY;
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "HTTP-Referer": window.location.origin,
+        "X-Title": "ECS-SIPA",
+      };
+      // Only add Authorization if key is actually set (free models work without it)
+      if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
+
       const res = await fetch(OPENROUTER_URL, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_OPENROUTER_API_KEY ?? ""}`,
-          "HTTP-Referer": window.location.origin,
-          "X-Title": "ECS-SIPA",
-        },
+        headers,
         body: JSON.stringify({
           model,
           messages: [
@@ -207,7 +213,13 @@ async function callSIPAAI(
       }
 
       const data = await res.json();
-      const content = data.choices?.[0]?.message?.content ?? "";
+      let content = data.choices?.[0]?.message?.content ?? "";
+
+      // Strip markdown code fences and DeepSeek think blocks
+      content = content.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+      if (content.startsWith("```")) {
+        content = content.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```\s*$/, "");
+      }
 
       // Extract JSON from response
       const jsonMatch = content.match(/\[[\s\S]*\]/) || content.match(/\{[\s\S]*\}/);
@@ -352,7 +364,7 @@ export async function analyzeSIPABatch(
   let failed = 0;
 
   // Filter leads that need analysis (new or changed interactions)
-  const leadsToAnalyze = leads.filter((lead) => {
+  const candidates = leads.filter((lead) => {
     const leadIx = allInteractions.filter((ix) => ix.lead_id === lead.id);
     const hash = computeInteractionHash(leadIx);
     const existing = existingAnalyses[lead.id];
@@ -360,12 +372,19 @@ export async function analyzeSIPABatch(
     return !existing || existing.interaction_hash !== hash;
   });
 
-  if (leadsToAnalyze.length === 0) {
+  if (candidates.length === 0) {
     onProgress?.({ done: totalLeads, total: totalLeads, failed: 0, phase: "idle" });
     return { analyses: {}, alerts: [] };
   }
 
-  console.log(`[SIPA] Analyzing ${leadsToAnalyze.length} leads (${totalLeads - leadsToAnalyze.length} unchanged)`);
+  // Prioritize by score (highest first = most valuable leads), cap per cycle
+  candidates.sort((a, b) => b.current_score - a.current_score);
+  const leadsToAnalyze = candidates.slice(0, SIPA_MAX_LEADS_PER_CYCLE);
+  if (candidates.length > SIPA_MAX_LEADS_PER_CYCLE) {
+    console.log(`[SIPA] Capping from ${candidates.length} to ${SIPA_MAX_LEADS_PER_CYCLE} leads this cycle`);
+  }
+
+  console.log(`[SIPA] Analyzing ${leadsToAnalyze.length} leads (${totalLeads - leadsToAnalyze.length} skipped/unchanged)`);
 
   // Process in batches
   for (let i = 0; i < leadsToAnalyze.length; i += SIPA_BATCH_SIZE) {
