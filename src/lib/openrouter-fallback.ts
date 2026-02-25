@@ -203,13 +203,17 @@ export async function callOpenRouterFree(
   signal?: AbortSignal,
   maxTokens = 2000
 ): Promise<string> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "HTTP-Referer": window.location.origin,
+    "X-Title": "ECS Lead Intelligence",
+  };
+  const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY;
+  if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
+
   const res = await fetch(OPENROUTER_URL, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "HTTP-Referer": window.location.origin,
-      "X-Title": "ECS Lead Intelligence",
-    },
+    headers,
     body: JSON.stringify({
       model,
       messages: [
