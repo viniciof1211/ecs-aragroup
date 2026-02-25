@@ -220,7 +220,7 @@ function buildSentimentPrompt(leads: InteractionSummary[]): string {
   return `Analiza el sentimiento de ${leads.length === 1 ? "este lead" : `estos ${leads.length} leads`}:\n\n${JSON.stringify(leadsData, null, 2)}`;
 }
 
-const RETRY_DELAYS_MS = [2_000, 5_000, 12_000]; // backoff for 429s
+const RETRY_DELAYS_MS = [3_000]; // single retry for 429s; fail fast → next model
 
 export async function callOpenRouterFree(
   model: string,

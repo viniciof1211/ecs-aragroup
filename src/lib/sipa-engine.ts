@@ -25,8 +25,8 @@ import type {
 
 export const SIPA_BATCH_SIZE = 1;
 export const SIPA_TIMEOUT_MS = 90_000;
-export const SIPA_INTER_BATCH_DELAY_MS = 3_000;
-export const SIPA_MAX_LEADS_PER_CYCLE = 50;
+export const SIPA_INTER_BATCH_DELAY_MS = 8_000;
+export const SIPA_MAX_LEADS_PER_CYCLE = 15;
 const SIPA_CACHE_KEY = "sipa_analyses";
 const SIPA_ALERTS_KEY = "sipa_alerts";
 const SIPA_CONFIG_KEY = "sipa_notification_config";
@@ -383,6 +383,7 @@ export async function analyzeSIPABatch(
       total: leadsToAnalyze.length,
       failed,
       phase: "analyzing",
+      lastError,
     });
 
     try {
@@ -419,7 +420,18 @@ export async function analyzeSIPABatch(
       if (signal?.aborted) break;
       const errMsg = err instanceof Error ? err.message : String(err);
       console.error("[SIPA] Batch failed:", errMsg);
-      lastError = errMsg;
+      // Condense long multi-model error chains for UI readability
+      const condensed = errMsg
+        .split(" | ")
+        .map((e) => {
+          const statusMatch = e.match(/returned (\d+)/);
+          const modelMatch = e.match(/^([^:]+)/);
+          return modelMatch && statusMatch
+            ? `${modelMatch[1]}: ${statusMatch[1]}`
+            : e.slice(0, 80);
+        })
+        .join(" | ");
+      lastError = condensed.length > 300 ? condensed.slice(0, 300) + "…" : condensed;
       done += batch.length;
       failed += batch.length;
     }
