@@ -34,8 +34,11 @@ const SIPA_CONFIG_KEY = "sipa_notification_config";
 const SIPA_MODELS = [
   "google/gemma-3-27b-it:free",
   "meta-llama/llama-3.3-70b-instruct:free",
+  "qwen/qwen3-32b:free",
   "mistralai/mistral-small-3.1-24b-instruct:free",
   "nousresearch/hermes-3-llama-3.1-405b:free",
+  "google/gemma-3n-e4b-it:free",
+  "moonshotai/kimi-k2:free",
 ];
 
 // ─── System Prompt ───
@@ -186,7 +189,10 @@ async function callSIPAAI(
 
   // Use the same proven callOpenRouterFree that the sentiment fallback uses
   const errors: string[] = [];
-  for (const model of SIPA_MODELS) {
+  for (let i = 0; i < SIPA_MODELS.length; i++) {
+    const model = SIPA_MODELS[i];
+    // Small delay between model attempts to avoid simultaneous rate-limit hits
+    if (i > 0) await new Promise((r) => setTimeout(r, 1_500));
     try {
       const raw = await callOpenRouterFree(model, SIPA_SYSTEM_PROMPT, userPrompt, signal, 4000);
 

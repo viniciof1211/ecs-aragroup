@@ -54,6 +54,24 @@ export const FREE_MODELS: FreeModel[] = [
     contextWindow: 131_072,
     priority: 4,
   },
+  {
+    id: "qwen/qwen3-32b:free",
+    label: "Qwen 3 32B",
+    contextWindow: 131_072,
+    priority: 5,
+  },
+  {
+    id: "google/gemma-3n-e4b-it:free",
+    label: "Gemma 3n E4B",
+    contextWindow: 131_072,
+    priority: 6,
+  },
+  {
+    id: "moonshotai/kimi-k2:free",
+    label: "Kimi K2",
+    contextWindow: 131_072,
+    priority: 7,
+  },
 ];
 
 /**
@@ -61,21 +79,25 @@ export const FREE_MODELS: FreeModel[] = [
  * The first model in the array is tried first.
  */
 export const FALLBACK_MAP: Record<string, string[]> = {
-  // GPT-4o-mini → Gemma → Llama → Mistral
+  // GPT-4o-mini → Gemma → Llama → Qwen → Mistral → Kimi
   "gpt-4o-mini": [
     "google/gemma-3-27b-it:free",
     "meta-llama/llama-3.3-70b-instruct:free",
+    "qwen/qwen3-32b:free",
     "mistralai/mistral-small-3.1-24b-instruct:free",
+    "moonshotai/kimi-k2:free",
   ],
-  // Grok → Llama → Gemma → Mistral
+  // Grok → Llama → Qwen → Gemma → Mistral
   grok: [
     "meta-llama/llama-3.3-70b-instruct:free",
+    "qwen/qwen3-32b:free",
     "google/gemma-3-27b-it:free",
     "mistralai/mistral-small-3.1-24b-instruct:free",
   ],
-  // Nano/small models → Gemma → Mistral → Llama
+  // Nano/small models → Gemma → Gemma3n → Mistral → Llama
   nano: [
     "google/gemma-3-27b-it:free",
+    "google/gemma-3n-e4b-it:free",
     "mistralai/mistral-small-3.1-24b-instruct:free",
     "meta-llama/llama-3.3-70b-instruct:free",
   ],
@@ -83,7 +105,9 @@ export const FALLBACK_MAP: Record<string, string[]> = {
   default: [
     "google/gemma-3-27b-it:free",
     "meta-llama/llama-3.3-70b-instruct:free",
+    "qwen/qwen3-32b:free",
     "mistralai/mistral-small-3.1-24b-instruct:free",
+    "moonshotai/kimi-k2:free",
   ],
 };
 
@@ -196,6 +220,8 @@ function buildSentimentPrompt(leads: InteractionSummary[]): string {
   return `Analiza el sentimiento de ${leads.length === 1 ? "este lead" : `estos ${leads.length} leads`}:\n\n${JSON.stringify(leadsData, null, 2)}`;
 }
 
+const RETRY_DELAYS_MS = [2_000, 5_000, 12_000]; // backoff for 429s
+
 export async function callOpenRouterFree(
   model: string,
   systemPrompt: string,
@@ -203,31 +229,51 @@ export async function callOpenRouterFree(
   signal?: AbortSignal,
   maxTokens = 2000
 ): Promise<string> {
-  // Auth is handled server-side by the nginx proxy
-  const res = await fetch(OPENROUTER_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userMessage },
-      ],
-      max_tokens: maxTokens,
-      temperature: 0.3,
-    }),
-    signal,
+  const body = JSON.stringify({
+    model,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userMessage },
+    ],
+    max_tokens: maxTokens,
+    temperature: 0.3,
   });
 
-  if (!res.ok) {
+  let lastError = "";
+  const maxAttempts = RETRY_DELAYS_MS.length + 1; // 1 initial + retries
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    if (signal?.aborted) throw new Error("Aborted");
+
+    // Auth is handled server-side by the nginx proxy
+    const res = await fetch(OPENROUTER_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+      signal,
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      const content = data?.choices?.[0]?.message?.content;
+      if (!content) throw new Error(`OpenRouter ${model} returned empty content`);
+      return content;
+    }
+
     const errorText = await res.text().catch(() => "");
-    throw new Error(`OpenRouter ${model} returned ${res.status}: ${errorText}`);
+
+    // Only retry on 429 (rate limit) — other errors fail immediately
+    if (res.status !== 429 || attempt >= RETRY_DELAYS_MS.length) {
+      throw new Error(`OpenRouter ${model} returned ${res.status}: ${errorText}`);
+    }
+
+    const delay = RETRY_DELAYS_MS[attempt];
+    console.warn(`[OpenRouter] ${model} 429 rate-limited, retrying in ${delay / 1000}s (attempt ${attempt + 1}/${RETRY_DELAYS_MS.length})...`);
+    lastError = errorText;
+    await new Promise((r) => setTimeout(r, delay));
   }
 
-  const data = await res.json();
-  const content = data?.choices?.[0]?.message?.content;
-  if (!content) throw new Error(`OpenRouter ${model} returned empty content`);
-  return content;
+  throw new Error(`OpenRouter ${model} rate-limited after ${maxAttempts} attempts: ${lastError}`);
 }
 
 function parseJsonResponse(raw: string): unknown {
