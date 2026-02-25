@@ -196,7 +196,7 @@ function buildSentimentPrompt(leads: InteractionSummary[]): string {
   return `Analiza el sentimiento de ${leads.length === 1 ? "este lead" : `estos ${leads.length} leads`}:\n\n${JSON.stringify(leadsData, null, 2)}`;
 }
 
-async function callOpenRouterFree(
+export async function callOpenRouterFree(
   model: string,
   systemPrompt: string,
   userMessage: string,

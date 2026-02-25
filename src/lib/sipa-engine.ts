@@ -10,6 +10,7 @@
  */
 
 import type { ECSLead, ECSInteraction } from "@/types/ecs";
+import { callOpenRouterFree } from "@/lib/openrouter-fallback";
 import type {
   SIPALeadAnalysis,
   SIPAActionItem,
@@ -29,8 +30,6 @@ export const SIPA_MAX_LEADS_PER_CYCLE = 50;
 const SIPA_CACHE_KEY = "sipa_analyses";
 const SIPA_ALERTS_KEY = "sipa_alerts";
 const SIPA_CONFIG_KEY = "sipa_notification_config";
-
-const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 const SIPA_MODELS = [
   "google/gemini-2.0-flash-exp:free",
@@ -138,7 +137,7 @@ export function buildSIPAPayload(
             (ix.bitrix_raw as Record<string, unknown>).note ||
             null
           : null;
-      const noteText = rawNote ? String(rawNote).slice(0, 200) : null;
+      const noteText = rawNote ? String(rawNote).slice(0, 80) : null;
 
       return {
         type: ix.type,
@@ -179,44 +178,15 @@ async function callSIPAAI(
   signal?: AbortSignal
 ): Promise<SIPAAIResponse[]> {
   const today = new Date().toISOString().split("T")[0];
-  const userPrompt = `Fecha actual: ${today}\n\nAnaliza ${payloads.length === 1 ? "este lead" : `estos ${payloads.length} leads`} y genera el plan de acción proactivo:\n\n${JSON.stringify(payloads, null, 2)}`;
+  const userPrompt = `Fecha actual: ${today}\nAnaliza ${payloads.length === 1 ? "este lead" : `estos ${payloads.length} leads`}:\n${JSON.stringify(payloads)}`;
 
+  // Use the same proven callOpenRouterFree that the sentiment fallback uses
   for (const model of SIPA_MODELS) {
     try {
-      const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY;
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        "HTTP-Referer": window.location.origin,
-        "X-Title": "ECS-SIPA",
-      };
-      // Only add Authorization if key is actually set (free models work without it)
-      if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
-
-      const res = await fetch(OPENROUTER_URL, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          model,
-          messages: [
-            { role: "system", content: SIPA_SYSTEM_PROMPT },
-            { role: "user", content: userPrompt },
-          ],
-          temperature: 0.3,
-          max_tokens: 4096,
-        }),
-        signal,
-      });
-
-      if (!res.ok) {
-        console.warn(`[SIPA] Model ${model} returned ${res.status}, trying next...`);
-        continue;
-      }
-
-      const data = await res.json();
-      let content = data.choices?.[0]?.message?.content ?? "";
+      const raw = await callOpenRouterFree(model, SIPA_SYSTEM_PROMPT, userPrompt, signal, 4000);
 
       // Strip markdown code fences and DeepSeek think blocks
-      content = content.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+      let content = raw.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
       if (content.startsWith("```")) {
         content = content.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```\s*$/, "");
       }
@@ -224,13 +194,14 @@ async function callSIPAAI(
       // Extract JSON from response
       const jsonMatch = content.match(/\[[\s\S]*\]/) || content.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
-        console.warn(`[SIPA] Model ${model} returned non-JSON, trying next...`);
+        console.warn(`[SIPA] Model ${model} returned non-JSON response, trying next...`);
         continue;
       }
 
       let parsed = JSON.parse(jsonMatch[0]);
       if (!Array.isArray(parsed)) parsed = [parsed];
 
+      console.log(`[SIPA] Model ${model} succeeded for ${parsed.length} leads`);
       return parsed as SIPAAIResponse[];
     } catch (err) {
       if (signal?.aborted) throw err;
