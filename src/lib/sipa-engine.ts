@@ -23,7 +23,7 @@ import type {
 
 // ─── Constants ───
 
-export const SIPA_BATCH_SIZE = 3;
+export const SIPA_BATCH_SIZE = 1;
 export const SIPA_TIMEOUT_MS = 90_000;
 export const SIPA_INTER_BATCH_DELAY_MS = 3_000;
 export const SIPA_MAX_LEADS_PER_CYCLE = 50;
@@ -180,7 +180,11 @@ async function callSIPAAI(
   const today = new Date().toISOString().split("T")[0];
   const userPrompt = `Fecha actual: ${today}\nAnaliza ${payloads.length === 1 ? "este lead" : `estos ${payloads.length} leads`}:\n${JSON.stringify(payloads)}`;
 
+  const promptSize = SIPA_SYSTEM_PROMPT.length + userPrompt.length;
+  console.log(`[SIPA] Prompt size: ${promptSize} chars for ${payloads.length} leads`);
+
   // Use the same proven callOpenRouterFree that the sentiment fallback uses
+  const errors: string[] = [];
   for (const model of SIPA_MODELS) {
     try {
       const raw = await callOpenRouterFree(model, SIPA_SYSTEM_PROMPT, userPrompt, signal, 4000);
@@ -194,7 +198,9 @@ async function callSIPAAI(
       // Extract JSON from response
       const jsonMatch = content.match(/\[[\s\S]*\]/) || content.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
-        console.warn(`[SIPA] Model ${model} returned non-JSON response, trying next...`);
+        const preview = content.slice(0, 150);
+        errors.push(`${model}: non-JSON response: "${preview}"`);
+        console.warn(`[SIPA] Model ${model} non-JSON:`, preview);
         continue;
       }
 
@@ -205,12 +211,14 @@ async function callSIPAAI(
       return parsed as SIPAAIResponse[];
     } catch (err) {
       if (signal?.aborted) throw err;
-      console.warn(`[SIPA] Model ${model} failed:`, err);
+      const msg = err instanceof Error ? err.message : String(err);
+      errors.push(`${model}: ${msg}`);
+      console.warn(`[SIPA] Model ${model} failed:`, msg);
       continue;
     }
   }
 
-  throw new Error("[SIPA] All AI models failed");
+  throw new Error(errors.join(" | "));
 }
 
 // ─── Convert AI response to typed SIPA objects ───
