@@ -65,7 +65,7 @@ if (-not $SkipBuild) {
 # Step 3: Build and Push Docker image via ACR Build
 if (-not $SkipPush) {
     Write-Host "[3/6] Building Docker image in ACR (cloud build)..." -ForegroundColor Yellow
-    Write-Host "  Uploading dist/ + nginx.conf + Dockerfile..." -ForegroundColor Gray
+    Write-Host "  Uploading dist/ + nginx.conf + Dockerfile + docker-entrypoint.sh..." -ForegroundColor Gray
 
     # Create a minimal build context with only what the Dockerfile needs
     $tempDir = New-TemporaryFile | ForEach-Object { Remove-Item $_ -Force; New-Item -ItemType Directory -Path $_ }
@@ -73,6 +73,7 @@ if (-not $SkipPush) {
         Copy-Item -Path "dist" -Destination "$tempDir\" -Recurse
         Copy-Item -Path "nginx.conf" -Destination "$tempDir\"
         Copy-Item -Path "Dockerfile" -Destination "$tempDir\"
+        Copy-Item -Path "docker-entrypoint.sh" -Destination "$tempDir\"
 
         Write-Host "  Starting ACR build..." -ForegroundColor Gray
         az acr build --registry $AcrName --image "${ImageName}:${Tag}" --file "$tempDir\Dockerfile" "$tempDir"
@@ -110,6 +111,12 @@ $existingApp = az containerapp show --name $AppName --resource-group $ResourceGr
 if ($LASTEXITCODE -ne 0) {
     # Create new Container App
     Write-Host "  Creating new Container App..." -ForegroundColor Gray
+    # Read OpenRouter API key from .env file
+    $OpenRouterKey = ""
+    if (Test-Path ".env") {
+        $envLine = Get-Content ".env" | Where-Object { $_ -match "^VITE_OPENROUTER_API_KEY=" }
+        if ($envLine) { $OpenRouterKey = ($envLine -split "=", 2)[1].Trim() }
+    }
     az containerapp create `
         --name $AppName `
         --resource-group $ResourceGroupName `
@@ -121,6 +128,7 @@ if ($LASTEXITCODE -ne 0) {
         --memory 2Gi `
         --min-replicas 1 `
         --max-replicas 3 `
+        --env-vars "OPENROUTER_API_KEY=$OpenRouterKey" `
         --revision-suffix (Get-Date -Format "yyyyMMddHHmmss")
     if ($LASTEXITCODE -ne 0) {
         Write-Host "ERROR: Failed to create Container App." -ForegroundColor Red
@@ -130,10 +138,17 @@ if ($LASTEXITCODE -ne 0) {
 } else {
     # Update existing Container App
     Write-Host "  Updating existing Container App..." -ForegroundColor Gray
+    # Read OpenRouter API key from .env file
+    $OpenRouterKey = ""
+    if (Test-Path ".env") {
+        $envLine = Get-Content ".env" | Where-Object { $_ -match "^VITE_OPENROUTER_API_KEY=" }
+        if ($envLine) { $OpenRouterKey = ($envLine -split "=", 2)[1].Trim() }
+    }
     az containerapp update `
         --name $AppName `
         --resource-group $ResourceGroupName `
         --image $FullImageTag `
+        --set-env-vars "OPENROUTER_API_KEY=$OpenRouterKey" `
         --revision-suffix (Get-Date -Format "yyyyMMddHHmmss")
     if ($LASTEXITCODE -ne 0) {
         Write-Host "ERROR: Failed to update Container App." -ForegroundColor Red

@@ -32,9 +32,10 @@ const SIPA_ALERTS_KEY = "sipa_alerts";
 const SIPA_CONFIG_KEY = "sipa_notification_config";
 
 const SIPA_MODELS = [
-  "google/gemini-2.0-flash-exp:free",
-  "deepseek/deepseek-r1:free",
-  "meta-llama/llama-3.3-70b:free",
+  "google/gemma-3-27b-it:free",
+  "meta-llama/llama-3.3-70b-instruct:free",
+  "mistralai/mistral-small-3.1-24b-instruct:free",
+  "nousresearch/hermes-3-llama-3.1-405b:free",
 ];
 
 // ─── System Prompt ───

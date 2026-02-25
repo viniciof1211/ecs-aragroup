@@ -31,27 +31,27 @@ export interface FreeModel {
  */
 export const FREE_MODELS: FreeModel[] = [
   {
-    id: "google/gemini-2.0-flash-exp:free",
-    label: "Gemini 2.0 Flash",
-    contextWindow: 1_000_000,
+    id: "google/gemma-3-27b-it:free",
+    label: "Gemma 3 27B",
+    contextWindow: 131_072,
     priority: 1,
   },
   {
-    id: "deepseek/deepseek-r1:free",
-    label: "DeepSeek R1",
+    id: "meta-llama/llama-3.3-70b-instruct:free",
+    label: "Llama 3.3 70B Instruct",
     contextWindow: 128_000,
     priority: 2,
   },
   {
-    id: "meta-llama/llama-3.3-70b:free",
-    label: "Llama 3.3 70B",
+    id: "mistralai/mistral-small-3.1-24b-instruct:free",
+    label: "Mistral Small 3.1 24B",
     contextWindow: 128_000,
     priority: 3,
   },
   {
-    id: "google/gemini-2.5-flash-image-preview:free",
-    label: "Gemini 2.5 Flash Preview",
-    contextWindow: 128_000,
+    id: "nousresearch/hermes-3-llama-3.1-405b:free",
+    label: "Hermes 3 405B",
+    contextWindow: 131_072,
     priority: 4,
   },
 ];
@@ -61,29 +61,29 @@ export const FREE_MODELS: FreeModel[] = [
  * The first model in the array is tried first.
  */
 export const FALLBACK_MAP: Record<string, string[]> = {
-  // GPT-4o-mini → Gemini Flash → DeepSeek → Llama
+  // GPT-4o-mini → Gemma → Llama → Mistral
   "gpt-4o-mini": [
-    "google/gemini-2.0-flash-exp:free",
-    "deepseek/deepseek-r1:free",
-    "meta-llama/llama-3.3-70b:free",
+    "google/gemma-3-27b-it:free",
+    "meta-llama/llama-3.3-70b-instruct:free",
+    "mistralai/mistral-small-3.1-24b-instruct:free",
   ],
-  // Grok → DeepSeek → Gemini → Llama
+  // Grok → Llama → Gemma → Mistral
   grok: [
-    "deepseek/deepseek-r1:free",
-    "google/gemini-2.0-flash-exp:free",
-    "meta-llama/llama-3.3-70b:free",
+    "meta-llama/llama-3.3-70b-instruct:free",
+    "google/gemma-3-27b-it:free",
+    "mistralai/mistral-small-3.1-24b-instruct:free",
   ],
-  // Nano/small models → Gemini Flash → Llama
+  // Nano/small models → Gemma → Mistral → Llama
   nano: [
-    "google/gemini-2.0-flash-exp:free",
-    "google/gemini-2.5-flash-image-preview:free",
-    "meta-llama/llama-3.3-70b:free",
+    "google/gemma-3-27b-it:free",
+    "mistralai/mistral-small-3.1-24b-instruct:free",
+    "meta-llama/llama-3.3-70b-instruct:free",
   ],
   // Default fallback chain
   default: [
-    "google/gemini-2.0-flash-exp:free",
-    "deepseek/deepseek-r1:free",
-    "meta-llama/llama-3.3-70b:free",
+    "google/gemma-3-27b-it:free",
+    "meta-llama/llama-3.3-70b-instruct:free",
+    "mistralai/mistral-small-3.1-24b-instruct:free",
   ],
 };
 
@@ -149,7 +149,7 @@ export function deactivateFallback(): void {
 
 // ─── OpenRouter Direct Call ───
 
-const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+const OPENROUTER_URL = "/api/openrouter/chat/completions";
 
 const SENTIMENT_SYSTEM_PROMPT = `Eres un agente de análisis de sentimiento comercial para ARA Group Costa Rica (cocinas, closets, muebles de diseño).
 
@@ -203,17 +203,10 @@ export async function callOpenRouterFree(
   signal?: AbortSignal,
   maxTokens = 2000
 ): Promise<string> {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    "HTTP-Referer": window.location.origin,
-    "X-Title": "ECS Lead Intelligence",
-  };
-  const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY;
-  if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
-
+  // Auth is handled server-side by the nginx proxy
   const res = await fetch(OPENROUTER_URL, {
     method: "POST",
-    headers,
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       model,
       messages: [
