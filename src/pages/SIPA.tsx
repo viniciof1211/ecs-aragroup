@@ -9,27 +9,20 @@
  *   5. Notification settings (email, browser, WhatsApp config)
  */
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Bell, BellRing, Calendar as CalendarIcon, GanttChart, Search,
   ChevronLeft, ChevronRight, CheckCircle2, XCircle, Clock,
   AlertTriangle, Info, Loader2, Play, Square, Trash2,
-  Mail, MessageCircle, Monitor, Settings2, RefreshCw,
-  Filter, Eye, ChevronDown, ChevronUp, ExternalLink,
+  Mail, MessageCircle, Monitor, Settings2,
+  Eye, ChevronDown, ChevronUp, ExternalLink,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Cell,
-} from "recharts";
 import { useSIPAStore } from "@/stores/useSIPAStore";
 import { useSIPAPolling } from "@/hooks/useSIPAPolling";
 import {
@@ -38,7 +31,6 @@ import {
 } from "@/lib/sipa-notifications";
 import {
   SIPA_ACTION_LABELS,
-  SIPA_TIMEFRAME_LABELS,
   SIPA_PRIORITY_LABELS,
   SIPA_PRIORITY_COLORS,
   SIPA_SEVERITY_COLORS,
@@ -133,9 +125,6 @@ export default function SIPAPage() {
         (a.employee ?? "").toLowerCase().includes(q)
     );
   }, [store.alerts, searchQuery]);
-
-  // Selected lead analysis
-  const selectedAnalysis = selectedLeadId ? store.analyses[selectedLeadId] : null;
 
   // ─── TABS ───
   const tabs: { id: SIPATab; label: string; icon: React.ElementType; badge?: number }[] = [
@@ -624,7 +613,7 @@ function GanttView({
   }, [analyses, searchQ]);
 
   // Date range for the timeline
-  const { minDate, maxDate, totalDays } = useMemo(() => {
+  const { minDate, totalDays } = useMemo(() => {
     const today = new Date();
     let min = today;
     let max = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days ahead
