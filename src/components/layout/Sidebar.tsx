@@ -8,6 +8,7 @@ import {
   MessageCircle,
   Shield,
   Settings,
+  BellRing,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePreferencesStore } from "@/stores/usePreferencesStore";
@@ -19,6 +20,7 @@ const navItems = [
   { to: "/automation", icon: Zap, label: "Automatización" },
   { to: "/ab-testing", icon: FlaskConical, label: "Pruebas A/B" },
   { to: "/whatsapp", icon: MessageCircle, label: "WhatsApp" },
+  { to: "/sipa", icon: BellRing, label: "S.I.P.A." },
   { to: "/board-kpis", icon: Shield, label: "KPIs Junta" },
   { to: "/settings", icon: Settings, label: "Configuración" },
 ];
