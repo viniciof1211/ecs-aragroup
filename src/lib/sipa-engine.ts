@@ -174,7 +174,7 @@ export function computeInteractionHash(interactions: ECSInteraction[]): string {
   return hash.toString(36);
 }
 
-// ─── Robust JSON extraction (handles trailing text after valid JSON) ───
+// ─── Robust JSON extraction (handles trailing text & truncated JSON) ───
 
 function extractJson(text: string): string | null {
   // Find the first [ or { that starts JSON
@@ -182,7 +182,7 @@ function extractJson(text: string): string | null {
   const objStart = text.indexOf("{");
   if (arrStart === -1 && objStart === -1) return null;
 
-  // Try array first (expected), then object
+  // Try starting positions in order of appearance
   const starts: number[] = [];
   if (arrStart !== -1) starts.push(arrStart);
   if (objStart !== -1) starts.push(objStart);
@@ -213,8 +213,54 @@ function extractJson(text: string): string | null {
         }
       }
     }
+
+    // If we get here, brackets never closed — truncated response.
+    // Try to repair by closing open brackets/strings.
+    if (depth > 0) {
+      const repaired = repairTruncatedJson(text.slice(start));
+      if (repaired) return repaired;
+    }
   }
   return null;
+}
+
+/**
+ * Attempt to repair truncated JSON by closing unclosed strings, objects, and arrays.
+ * Returns null if repair fails.
+ */
+function repairTruncatedJson(text: string): string | null {
+  // Remove any trailing partial key-value (e.g. `"key": "incom`)
+  let trimmed = text.replace(/,\s*"[^"]*"?\s*:?\s*"?[^"{}\[\]]*$/, "");
+  // Also handle trailing comma
+  trimmed = trimmed.replace(/,\s*$/, "");
+
+  // Count unclosed brackets
+  let inStr = false;
+  let esc = false;
+  const stack: string[] = [];
+  for (let i = 0; i < trimmed.length; i++) {
+    const ch = trimmed[i];
+    if (esc) { esc = false; continue; }
+    if (ch === "\\") { esc = true; continue; }
+    if (ch === '"') { inStr = !inStr; continue; }
+    if (inStr) continue;
+    if (ch === "{") stack.push("}");
+    else if (ch === "[") stack.push("]");
+    else if (ch === "}" || ch === "]") stack.pop();
+  }
+
+  // Close any open string
+  if (inStr) trimmed += '"';
+  // Close all open brackets in reverse order
+  while (stack.length > 0) trimmed += stack.pop();
+
+  try {
+    JSON.parse(trimmed);
+    console.warn("[SIPA] Repaired truncated JSON, closed", stack.length, "brackets");
+    return trimmed;
+  } catch {
+    return null;
+  }
 }
 
 // ─── Call AI via OpenRouter ───
@@ -236,7 +282,7 @@ async function callSIPAAI(
     // Small delay between model attempts to avoid simultaneous rate-limit hits
     if (i > 0) await new Promise((r) => setTimeout(r, 1_500));
     try {
-      const raw = await callOpenRouterFree(model, SIPA_SYSTEM_PROMPT, userPrompt, signal, 4000);
+      const raw = await callOpenRouterFree(model, SIPA_SYSTEM_PROMPT, userPrompt, signal, 8000);
 
       // Strip markdown code fences and DeepSeek think blocks
       let content = raw.replace(/<think>[\s\S]*?<\/think>/g, "").trim();

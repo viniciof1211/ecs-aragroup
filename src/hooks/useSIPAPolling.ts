@@ -71,7 +71,7 @@ export function useSIPAPolling() {
     } finally {
       store.setIsRunning(false);
       store.setAbortController(null);
-      store.setProgress(null);
+      // NOTE: Do NOT clear progress here — preserve it so errors remain visible in UI
     }
   }, [store, queryClient]);
 
