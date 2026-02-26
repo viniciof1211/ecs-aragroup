@@ -33,10 +33,8 @@ const SIPA_CONFIG_KEY = "sipa_notification_config";
 
 const SIPA_MODELS = [
   "openrouter/free",                                 // auto-router: picks best available free model
-  "openai/gpt-oss-120b:free",
   "google/gemma-3-27b-it:free",
   "meta-llama/llama-3.3-70b-instruct:free",
-  "openai/gpt-oss-20b:free",
   "stepfun/step-3.5-flash:free",
   "mistralai/mistral-small-3.1-24b-instruct:free",
   "nvidia/nemotron-nano-9b-v2:free",
@@ -176,6 +174,51 @@ export function computeInteractionHash(interactions: ECSInteraction[]): string {
   return hash.toString(36);
 }
 
+// ─── Robust JSON extraction (handles trailing text after valid JSON) ───
+
+function extractJson(text: string): string | null {
+  // Find the first [ or { that starts JSON
+  const arrStart = text.indexOf("[");
+  const objStart = text.indexOf("{");
+  if (arrStart === -1 && objStart === -1) return null;
+
+  // Try array first (expected), then object
+  const starts: number[] = [];
+  if (arrStart !== -1) starts.push(arrStart);
+  if (objStart !== -1) starts.push(objStart);
+  starts.sort((a, b) => a - b);
+
+  for (const start of starts) {
+    const open = text[start]; // '[' or '{'
+    const close = open === "[" ? "]" : "}";
+    let depth = 0;
+    let inString = false;
+    let escape = false;
+
+    for (let i = start; i < text.length; i++) {
+      const ch = text[i];
+      if (escape) { escape = false; continue; }
+      if (ch === "\\") { escape = true; continue; }
+      if (ch === '"') { inString = !inString; continue; }
+      if (inString) continue;
+      if (ch === "[" || ch === "{") depth++;
+      if (ch === "]" || ch === "}") {
+        depth--;
+        if (depth === 0) {
+          const candidate = text.slice(start, i + 1);
+          try {
+            JSON.parse(candidate);
+            return candidate;
+          } catch {
+            break; // this bracket pair didn't parse, try next start
+          }
+        }
+      }
+    }
+  }
+  return null;
+}
+
 // ─── Call AI via OpenRouter ───
 
 async function callSIPAAI(
@@ -203,16 +246,16 @@ async function callSIPAAI(
         content = content.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```\s*$/, "");
       }
 
-      // Extract JSON from response
-      const jsonMatch = content.match(/\[[\s\S]*\]/) || content.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
+      // Extract JSON robustly using bracket counting (handles trailing text)
+      const jsonStr = extractJson(content);
+      if (!jsonStr) {
         const preview = content.slice(0, 150);
         errors.push(`${model}: non-JSON response: "${preview}"`);
         console.warn(`[SIPA] Model ${model} non-JSON:`, preview);
         continue;
       }
 
-      let parsed = JSON.parse(jsonMatch[0]);
+      let parsed = JSON.parse(jsonStr);
       if (!Array.isArray(parsed)) parsed = [parsed];
 
       console.log(`[SIPA] Model ${model} succeeded for ${parsed.length} leads`);

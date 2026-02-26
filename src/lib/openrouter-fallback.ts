@@ -37,46 +37,34 @@ export const FREE_MODELS: FreeModel[] = [
     priority: 0,
   },
   {
-    id: "openai/gpt-oss-120b:free",
-    label: "GPT-OSS 120B",
-    contextWindow: 128_000,
-    priority: 1,
-  },
-  {
     id: "google/gemma-3-27b-it:free",
     label: "Gemma 3 27B",
     contextWindow: 131_072,
-    priority: 2,
+    priority: 1,
   },
   {
     id: "meta-llama/llama-3.3-70b-instruct:free",
     label: "Llama 3.3 70B Instruct",
     contextWindow: 128_000,
-    priority: 3,
-  },
-  {
-    id: "openai/gpt-oss-20b:free",
-    label: "GPT-OSS 20B",
-    contextWindow: 128_000,
-    priority: 4,
+    priority: 2,
   },
   {
     id: "stepfun/step-3.5-flash:free",
     label: "Step 3.5 Flash",
     contextWindow: 128_000,
-    priority: 5,
+    priority: 3,
   },
   {
     id: "mistralai/mistral-small-3.1-24b-instruct:free",
     label: "Mistral Small 3.1 24B",
     contextWindow: 128_000,
-    priority: 6,
+    priority: 4,
   },
   {
     id: "nvidia/nemotron-nano-9b-v2:free",
     label: "Nemotron Nano 9B v2",
     contextWindow: 128_000,
-    priority: 7,
+    priority: 5,
   },
 ];
 
@@ -85,13 +73,12 @@ export const FREE_MODELS: FreeModel[] = [
  * The first model in the array is tried first.
  */
 export const FALLBACK_MAP: Record<string, string[]> = {
-  // GPT-4o-mini → auto-router → GPT-OSS → Gemma → Llama
+  // GPT-4o-mini → auto-router → Gemma → Llama → Step
   "gpt-4o-mini": [
     "openrouter/free",
-    "openai/gpt-oss-120b:free",
     "google/gemma-3-27b-it:free",
     "meta-llama/llama-3.3-70b-instruct:free",
-    "openai/gpt-oss-20b:free",
+    "stepfun/step-3.5-flash:free",
   ],
   // Grok → auto-router → Llama → Gemma → Mistral
   grok: [
@@ -110,10 +97,10 @@ export const FALLBACK_MAP: Record<string, string[]> = {
   // Default fallback chain
   default: [
     "openrouter/free",
-    "openai/gpt-oss-120b:free",
     "google/gemma-3-27b-it:free",
     "meta-llama/llama-3.3-70b-instruct:free",
-    "openai/gpt-oss-20b:free",
+    "stepfun/step-3.5-flash:free",
+    "mistralai/mistral-small-3.1-24b-instruct:free",
   ],
 };
 
