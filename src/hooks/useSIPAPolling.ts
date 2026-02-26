@@ -5,8 +5,11 @@
  *   1. Loads all leads + interactions from React Query cache
  *   2. Detects which leads are new or have updated interactions
  *   3. Sends them to the SIPA AI engine in batches
- *   4. Stores results + generates alerts
+ *   4. Stores results + generates alerts (incrementally per-batch)
  *   5. Fires browser notifications if configured
+ *
+ * Uses refs for store/queryClient access so the polling interval
+ * is stable and doesn't restart on every Zustand state change.
  */
 
 import { useEffect, useRef, useCallback } from "react";
@@ -23,21 +26,30 @@ export function useSIPAPolling() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const hydratedRef = useRef(false);
 
+  // Keep stable refs to avoid re-creating runAnalysis on every store change
+  const storeRef = useRef(store);
+  storeRef.current = store;
+  const qcRef = useRef(queryClient);
+  qcRef.current = queryClient;
+
   // Hydrate on first mount
   useEffect(() => {
     if (!hydratedRef.current) {
-      store.hydrate();
+      storeRef.current.hydrate();
       hydratedRef.current = true;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Stable runAnalysis — no dependency on store, so interval never restarts
   const runAnalysis = useCallback(async () => {
-    if (store.isRunning) return;
+    const s = storeRef.current;
+    const qc = qcRef.current;
+
+    if (s.isRunning) return;
 
     // Get cached data from React Query
-    const leads = queryClient.getQueryData<ECSLead[]>(["leads"]) ?? [];
-    const interactions = queryClient.getQueryData<ECSInteraction[]>(["interactions"]) ?? [];
+    const leads = qc.getQueryData<ECSLead[]>(["leads"]) ?? [];
+    const interactions = qc.getQueryData<ECSInteraction[]>(["interactions"]) ?? [];
 
     if (leads.length === 0) {
       console.log("[SIPA] No leads available, skipping cycle");
@@ -45,23 +57,37 @@ export function useSIPAPolling() {
     }
 
     const controller = new AbortController();
-    store.setAbortController(controller);
-    store.setIsRunning(true);
+    s.setAbortController(controller);
+    s.setIsRunning(true);
 
     try {
+      // Read current analyses snapshot at start (includes localStorage-persisted data)
+      const existingAnalyses = useSIPAStore.getState().analyses;
+
       const { analyses, alerts } = await analyzeSIPABatch(
         leads,
         interactions,
-        store.analyses,
-        (p) => store.setProgress(p),
-        controller.signal
+        existingAnalyses,
+        (p) => useSIPAStore.getState().setProgress(p),
+        controller.signal,
+        // Incremental save callback — called after each successful batch
+        (batchAnalyses, batchAlerts) => {
+          const current = useSIPAStore.getState();
+          if (Object.keys(batchAnalyses).length > 0) {
+            current.mergeAnalyses(batchAnalyses);
+          }
+          if (batchAlerts.length > 0) {
+            current.addAlerts(batchAlerts);
+          }
+        }
       );
 
+      // Final merge for anything not yet saved (shouldn't be needed but safe)
       if (Object.keys(analyses).length > 0) {
-        store.mergeAnalyses(analyses);
+        useSIPAStore.getState().mergeAnalyses(analyses);
       }
       if (alerts.length > 0) {
-        store.addAlerts(alerts);
+        useSIPAStore.getState().addAlerts(alerts);
         fireBrowserNotifications(alerts.length);
       }
     } catch (err) {
@@ -69,13 +95,13 @@ export function useSIPAPolling() {
         console.error("[SIPA] Analysis cycle failed:", err);
       }
     } finally {
-      store.setIsRunning(false);
-      store.setAbortController(null);
+      useSIPAStore.getState().setIsRunning(false);
+      useSIPAStore.getState().setAbortController(null);
       // NOTE: Do NOT clear progress here — preserve it so errors remain visible in UI
     }
-  }, [store, queryClient]);
+  }, []);
 
-  // Set up polling interval
+  // Set up polling interval — stable because runAnalysis never changes
   useEffect(() => {
     // Run first analysis after 30s to let data load
     const initialTimeout = setTimeout(() => {
@@ -93,9 +119,10 @@ export function useSIPAPolling() {
   return {
     runNow: runAnalysis,
     cancel: () => {
-      store.abortController?.abort();
-      store.setIsRunning(false);
-      store.setAbortController(null);
+      const s = useSIPAStore.getState();
+      s.abortController?.abort();
+      s.setIsRunning(false);
+      s.setAbortController(null);
     },
   };
 }

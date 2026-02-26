@@ -376,6 +376,69 @@ function aiResponseToAnalysis(
   };
 }
 
+/**
+ * Merge a new AI analysis with an existing one, preserving user actions.
+ * - Carries over completed/dismissed status from old action items to matching new ones (by title).
+ * - Keeps old completed/dismissed items that have no match in the new analysis.
+ * - Merges timeline events similarly.
+ */
+function mergeWithExistingAnalysis(
+  existing: SIPALeadAnalysis,
+  incoming: SIPALeadAnalysis
+): SIPALeadAnalysis {
+  // Build lookup of old action items by normalized title
+  const oldItemsByTitle = new Map<string, SIPAActionItem>();
+  for (const item of existing.action_items) {
+    oldItemsByTitle.set(item.title.toLowerCase().trim(), item);
+  }
+
+  // Merge action items: carry over completed/dismissed state
+  const mergedActions: SIPAActionItem[] = incoming.action_items.map((newItem) => {
+    const key = newItem.title.toLowerCase().trim();
+    const oldItem = oldItemsByTitle.get(key);
+    if (oldItem) {
+      oldItemsByTitle.delete(key); // consumed
+      return {
+        ...newItem,
+        id: oldItem.id, // keep stable ID so UI refs and alerts stay valid
+        completed: oldItem.completed,
+        completed_at: oldItem.completed_at,
+        dismissed: oldItem.dismissed,
+      };
+    }
+    return newItem;
+  });
+
+  // Append old items that were completed/dismissed but not in new analysis
+  for (const oldItem of oldItemsByTitle.values()) {
+    if (oldItem.completed || oldItem.dismissed) {
+      mergedActions.push(oldItem);
+    }
+  }
+
+  // Rebuild timeline events from merged action items
+  const mergedTimeline: SIPATimelineEvent[] = mergedActions.map((item) => ({
+    id: `tl_${item.id}`,
+    lead_id: item.lead_id,
+    lead_name: item.lead_name,
+    employee: item.employee,
+    type: "scheduled_action" as const,
+    label: item.title,
+    start_date: item.due_date,
+    end_date: null,
+    color: item.priority === "critical" ? "#ef4444" :
+           item.priority === "high" ? "#f97316" :
+           item.priority === "medium" ? "#eab308" : "#22c55e",
+    completed: item.completed,
+  }));
+
+  return {
+    ...incoming,
+    action_items: mergedActions,
+    timeline_events: mergedTimeline,
+  };
+}
+
 function analysisToAlerts(analysis: SIPALeadAnalysis): SIPAAlert[] {
   const alerts: SIPAAlert[] = [];
 
@@ -429,7 +492,8 @@ export async function analyzeSIPABatch(
   allInteractions: ECSInteraction[],
   existingAnalyses: Record<string, SIPALeadAnalysis>,
   onProgress?: (p: SIPAProgress) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  onBatchDone?: (analyses: Record<string, SIPALeadAnalysis>, alerts: SIPAAlert[]) => void
 ): Promise<{ analyses: Record<string, SIPALeadAnalysis>; alerts: SIPAAlert[] }> {
   const newAnalyses: Record<string, SIPALeadAnalysis> = {};
   const newAlerts: SIPAAlert[] = [];
@@ -480,19 +544,31 @@ export async function analyzeSIPABatch(
       );
       const aiResponses = await callSIPAAI(payloads, signal);
 
+      const batchAnalyses: Record<string, SIPALeadAnalysis> = {};
+      const batchAlerts: SIPAAlert[] = [];
+
       for (const aiResp of aiResponses) {
         const lead = batch.find((l) => l.id === aiResp.lead_id || l.name === aiResp.lead_name);
         if (!lead) continue;
 
         const leadIx = allInteractions.filter((ix) => ix.lead_id === lead.id);
         const hash = computeInteractionHash(leadIx);
-        const analysis = aiResponseToAnalysis(aiResp, hash, leadIx.length);
+        let analysis = aiResponseToAnalysis(aiResp, hash, leadIx.length);
         // Ensure lead_id is correct (AI may return name instead of ID)
         analysis.lead_id = lead.id;
+
+        // Preserve user actions (completed/dismissed) from existing analysis
+        const existing = existingAnalyses[lead.id];
+        if (existing) {
+          analysis = mergeWithExistingAnalysis(existing, analysis);
+        }
+
         newAnalyses[lead.id] = analysis;
+        batchAnalyses[lead.id] = analysis;
 
         const alerts = analysisToAlerts(analysis);
         newAlerts.push(...alerts);
+        batchAlerts.push(...alerts);
         done++;
       }
 
@@ -503,6 +579,11 @@ export async function analyzeSIPABatch(
           failed++;
           errors.push(`Lead ${lead.name}: sin respuesta del AI`);
         }
+      }
+
+      // Incremental save — persist this batch immediately
+      if (Object.keys(batchAnalyses).length > 0) {
+        onBatchDone?.(batchAnalyses, batchAlerts);
       }
     } catch (err) {
       if (signal?.aborted) break;
