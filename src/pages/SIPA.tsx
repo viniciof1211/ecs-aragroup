@@ -182,9 +182,11 @@ export default function SIPAPage() {
               {store.progress.failed > 0 && ` (${store.progress.failed} fallidos)`}
             </span>
           </div>
-          {store.progress.lastError && (
-            <div className="mt-1 text-xs text-destructive font-mono bg-destructive/10 rounded px-2 py-1 max-h-20 overflow-auto">
-              Error: {store.progress.lastError}
+          {store.progress.errors && store.progress.errors.length > 0 && (
+            <div className="mt-1 text-xs text-destructive font-mono bg-destructive/10 rounded px-2 py-1 max-h-32 overflow-auto">
+              {store.progress.errors.map((e, i) => (
+                <div key={i}>#{i + 1} {e}</div>
+              ))}
             </div>
           )}
           <div className="mt-2 h-2 rounded-full bg-muted overflow-hidden">
@@ -198,14 +200,16 @@ export default function SIPAPage() {
         </div>
       )}
 
-      {/* Last error display (persists after analysis ends) */}
-      {!store.isRunning && store.progress?.lastError && store.progress.failed > 0 && (
+      {/* Error log display (persists after analysis ends) */}
+      {!store.isRunning && store.progress?.errors && store.progress.errors.length > 0 && store.progress.failed > 0 && (
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
           <div className="text-sm font-medium text-destructive">
-            Último análisis: {store.progress.failed} de {store.progress.total} fallidos
+            Último análisis: {store.progress.failed} de {store.progress.total} fallidos ({store.progress.errors.length} errores)
           </div>
-          <div className="mt-1 text-xs text-destructive/80 font-mono bg-destructive/10 rounded px-2 py-1 max-h-32 overflow-auto whitespace-pre-wrap">
-            {store.progress.lastError}
+          <div className="mt-1 text-xs text-destructive/80 font-mono bg-destructive/10 rounded px-2 py-1 max-h-48 overflow-auto">
+            {store.progress.errors.map((e, i) => (
+              <div key={i} className="py-0.5 border-b border-destructive/10 last:border-0">#{i + 1} {e}</div>
+            ))}
           </div>
         </div>
       )}

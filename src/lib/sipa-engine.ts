@@ -349,7 +349,7 @@ export async function analyzeSIPABatch(
   const totalLeads = leads.length;
   let done = 0;
   let failed = 0;
-  let lastError = "";
+  const errors: string[] = [];
 
   // Filter leads that need analysis (new or changed interactions)
   const candidates = leads.filter((lead) => {
@@ -384,7 +384,7 @@ export async function analyzeSIPABatch(
       total: leadsToAnalyze.length,
       failed,
       phase: "analyzing",
-      lastError,
+      errors,
     });
 
     try {
@@ -414,7 +414,7 @@ export async function analyzeSIPABatch(
         if (!newAnalyses[lead.id]) {
           done++;
           failed++;
-          lastError = `Lead ${lead.name}: sin respuesta del AI`;
+          errors.push(`Lead ${lead.name}: sin respuesta del AI`);
         }
       }
     } catch (err) {
@@ -432,7 +432,7 @@ export async function analyzeSIPABatch(
             : e.slice(0, 80);
         })
         .join(" | ");
-      lastError = condensed.length > 300 ? condensed.slice(0, 300) + "…" : condensed;
+      errors.push(condensed.length > 300 ? condensed.slice(0, 300) + "…" : condensed);
       done += batch.length;
       failed += batch.length;
     }
@@ -442,7 +442,7 @@ export async function analyzeSIPABatch(
       total: leadsToAnalyze.length,
       failed,
       phase: "analyzing",
-      lastError,
+      errors,
     });
 
     // Inter-batch delay
@@ -456,7 +456,7 @@ export async function analyzeSIPABatch(
     total: leadsToAnalyze.length,
     failed,
     phase: "idle",
-    lastError,
+    errors,
   });
 
   return { analyses: newAnalyses, alerts: newAlerts };
