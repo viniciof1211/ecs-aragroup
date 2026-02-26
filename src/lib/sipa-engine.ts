@@ -189,8 +189,6 @@ function extractJson(text: string): string | null {
   starts.sort((a, b) => a - b);
 
   for (const start of starts) {
-    const open = text[start]; // '[' or '{'
-    const close = open === "[" ? "]" : "}";
     let depth = 0;
     let inString = false;
     let escape = false;
