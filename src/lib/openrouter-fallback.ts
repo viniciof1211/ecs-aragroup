@@ -31,45 +31,51 @@ export interface FreeModel {
  */
 export const FREE_MODELS: FreeModel[] = [
   {
+    id: "openrouter/free",
+    label: "Auto Router (free)",
+    contextWindow: 128_000,
+    priority: 0,
+  },
+  {
+    id: "openai/gpt-oss-120b:free",
+    label: "GPT-OSS 120B",
+    contextWindow: 128_000,
+    priority: 1,
+  },
+  {
     id: "google/gemma-3-27b-it:free",
     label: "Gemma 3 27B",
     contextWindow: 131_072,
-    priority: 1,
+    priority: 2,
   },
   {
     id: "meta-llama/llama-3.3-70b-instruct:free",
     label: "Llama 3.3 70B Instruct",
     contextWindow: 128_000,
-    priority: 2,
+    priority: 3,
+  },
+  {
+    id: "openai/gpt-oss-20b:free",
+    label: "GPT-OSS 20B",
+    contextWindow: 128_000,
+    priority: 4,
+  },
+  {
+    id: "stepfun/step-3.5-flash:free",
+    label: "Step 3.5 Flash",
+    contextWindow: 128_000,
+    priority: 5,
   },
   {
     id: "mistralai/mistral-small-3.1-24b-instruct:free",
     label: "Mistral Small 3.1 24B",
     contextWindow: 128_000,
-    priority: 3,
-  },
-  {
-    id: "nousresearch/hermes-3-llama-3.1-405b:free",
-    label: "Hermes 3 405B",
-    contextWindow: 131_072,
-    priority: 4,
-  },
-  {
-    id: "qwen/qwen3-32b:free",
-    label: "Qwen 3 32B",
-    contextWindow: 131_072,
-    priority: 5,
-  },
-  {
-    id: "google/gemma-3n-e4b-it:free",
-    label: "Gemma 3n E4B",
-    contextWindow: 131_072,
     priority: 6,
   },
   {
-    id: "moonshotai/kimi-k2:free",
-    label: "Kimi K2",
-    contextWindow: 131_072,
+    id: "nvidia/nemotron-nano-9b-v2:free",
+    label: "Nemotron Nano 9B v2",
+    contextWindow: 128_000,
     priority: 7,
   },
 ];
@@ -79,35 +85,35 @@ export const FREE_MODELS: FreeModel[] = [
  * The first model in the array is tried first.
  */
 export const FALLBACK_MAP: Record<string, string[]> = {
-  // GPT-4o-mini → Gemma → Llama → Qwen → Mistral → Kimi
+  // GPT-4o-mini → auto-router → GPT-OSS → Gemma → Llama
   "gpt-4o-mini": [
+    "openrouter/free",
+    "openai/gpt-oss-120b:free",
     "google/gemma-3-27b-it:free",
     "meta-llama/llama-3.3-70b-instruct:free",
-    "qwen/qwen3-32b:free",
-    "mistralai/mistral-small-3.1-24b-instruct:free",
-    "moonshotai/kimi-k2:free",
+    "openai/gpt-oss-20b:free",
   ],
-  // Grok → Llama → Qwen → Gemma → Mistral
+  // Grok → auto-router → Llama → Gemma → Mistral
   grok: [
+    "openrouter/free",
     "meta-llama/llama-3.3-70b-instruct:free",
-    "qwen/qwen3-32b:free",
     "google/gemma-3-27b-it:free",
     "mistralai/mistral-small-3.1-24b-instruct:free",
   ],
-  // Nano/small models → Gemma → Gemma3n → Mistral → Llama
+  // Nano/small models → auto-router → Nemotron → Step → Gemma
   nano: [
+    "openrouter/free",
+    "nvidia/nemotron-nano-9b-v2:free",
+    "stepfun/step-3.5-flash:free",
     "google/gemma-3-27b-it:free",
-    "google/gemma-3n-e4b-it:free",
-    "mistralai/mistral-small-3.1-24b-instruct:free",
-    "meta-llama/llama-3.3-70b-instruct:free",
   ],
   // Default fallback chain
   default: [
+    "openrouter/free",
+    "openai/gpt-oss-120b:free",
     "google/gemma-3-27b-it:free",
     "meta-llama/llama-3.3-70b-instruct:free",
-    "qwen/qwen3-32b:free",
-    "mistralai/mistral-small-3.1-24b-instruct:free",
-    "moonshotai/kimi-k2:free",
+    "openai/gpt-oss-20b:free",
   ],
 };
 
