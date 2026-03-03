@@ -12,6 +12,19 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      window.onerror = function(msg, src, line, col, err) {
+        var el = document.getElementById('root');
+        if (el) el.innerHTML = '<pre style="padding:32px;color:#b00;font-family:monospace;white-space:pre-wrap">' +
+          'GLOBAL ERROR:\n' + msg + '\n\nSource: ' + src + ':' + line + ':' + col +
+          '\n\n' + (err && err.stack ? err.stack : '') + '</pre>';
+      };
+      window.addEventListener('unhandledrejection', function(e) {
+        var el = document.getElementById('root');
+        if (el && !el.hasChildNodes()) el.innerHTML = '<pre style="padding:32px;color:#b00;font-family:monospace;white-space:pre-wrap">' +
+          'UNHANDLED REJECTION:\n' + (e.reason && e.reason.stack ? e.reason.stack : e.reason) + '</pre>';
+      });
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
