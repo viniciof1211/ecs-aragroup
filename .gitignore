@@ -14,8 +14,9 @@ dist-ssr
 .env
 .env.*
 
-# ETL generated data (large files)
-public/data/
+# ETL per-lead shards (not fetched by the app, large)
+public/data/interactions/
+public/data/score_history/
 
 # Editor directories and files
 .vscode/*

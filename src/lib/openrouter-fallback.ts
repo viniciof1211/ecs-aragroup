@@ -166,7 +166,12 @@ export function deactivateFallback(): void {
 
 // ─── OpenRouter Direct Call ───
 
-const OPENROUTER_URL = "/api/openrouter/chat/completions";
+// Use direct OpenRouter API when API key is available (Vercel),
+// otherwise fall back to nginx proxy path (Azure Container Apps).
+const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY ?? "";
+const OPENROUTER_URL = OPENROUTER_API_KEY
+  ? "https://openrouter.ai/api/v1/chat/completions"
+  : "/api/openrouter/chat/completions";
 
 const SENTIMENT_SYSTEM_PROMPT = `Eres un agente de análisis de sentimiento comercial para ARA Group Costa Rica (cocinas, closets, muebles de diseño).
 
@@ -238,10 +243,16 @@ export async function callOpenRouterFree(
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     if (signal?.aborted) throw new Error("Aborted");
 
-    // Auth is handled server-side by the nginx proxy
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (OPENROUTER_API_KEY) {
+      headers["Authorization"] = `Bearer ${OPENROUTER_API_KEY}`;
+      headers["HTTP-Referer"] = window.location.origin;
+      headers["X-Title"] = "ECS Lead Intelligence";
+    }
+
     const res = await fetch(OPENROUTER_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body,
       signal,
     });
